@@ -7,6 +7,7 @@ class SourceChunk(BaseModel):
     chunk_id: int = Field(..., description="Zero-based chunk index in the analyzed document")
     page_number: int
     text: str
+    relevance_score: float
 
 
 class ClauseAnalysis(BaseModel):
@@ -39,4 +40,6 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    evidence: List[SourceChunk]
+    grounded: bool
+    confidence: float
+    citations: List[SourceChunk]
