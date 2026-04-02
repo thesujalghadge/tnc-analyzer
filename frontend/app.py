@@ -82,11 +82,15 @@ else:
                         st.write("### 🧠 Answer:")
                         st.write(result["answer"])
 
-                        st.write("### 📌 Evidence:")
+                        status_label = "Grounded" if result["grounded"] else "Low support"
+                        st.caption(f"{status_label} | Confidence: {result['confidence']:.2f}")
 
-                        for ev in result["evidence"]:
+                        st.write("### 📌 Citations:")
+
+                        for ev in result["citations"]:
                             st.info(
-                                f"Page {ev['page_number']} | Chunk {ev['chunk_id'] + 1}: {ev['text'][:250]}"
+                                f"Page {ev['page_number']} | Chunk {ev['chunk_id'] + 1} | "
+                                f"Relevance {ev['relevance_score']:.2f}\n\n{ev['text'][:300]}"
                             )
 
                 except Exception as e:
