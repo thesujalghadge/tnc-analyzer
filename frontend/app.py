@@ -15,6 +15,9 @@ if "document_loaded" not in st.session_state:
 if "document_id" not in st.session_state:
     st.session_state.document_id = None
 
+if "analysis_payload" not in st.session_state:
+    st.session_state.analysis_payload = None
+
 
 # -------------------------------
 # FILE UPLOAD
@@ -42,12 +45,32 @@ if uploaded_file is not None:
             # ✅ mark as ready for Q&A
             st.session_state.document_loaded = True
             st.session_state.document_id = payload["document_id"]
+            st.session_state.analysis_payload = payload
 
         else:
             st.error(f"API Error: {response.status_code}")
 
     except Exception as e:
         st.error(f"Connection Error: {e}")
+
+
+if st.session_state.analysis_payload:
+    st.subheader("⚠️ Clause Risk Review")
+    for clause in st.session_state.analysis_payload["clauses"][:8]:
+        badge = {
+            "HIGH": "🔴 High",
+            "MEDIUM": "🟡 Medium",
+            "LOW": "🟢 Low",
+        }.get(clause["risk"], clause["risk"])
+
+        with st.container():
+            st.markdown(
+                f"**{badge}** | Score `{clause['risk_score']}/10` | "
+                f"Confidence `{clause['confidence']}` | Category `{clause['category']}`"
+            )
+            st.caption(f"Page {clause['page_number']} | Category confidence {clause['category_confidence']}")
+            st.write(clause["clause"][:350])
+            st.caption(clause["reason"])
 
 
 # -------------------------------

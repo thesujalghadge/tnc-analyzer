@@ -31,7 +31,13 @@ def format_output(summary, analysis):
     count = 0
     seen_reasons = set()
 
-    for item in analysis:
+    sorted_analysis = sorted(
+        analysis,
+        key=lambda item: (item["risk_score"], item["confidence"]),
+        reverse=True,
+    )
+
+    for item in sorted_analysis:
         if item["risk"] == "HIGH" and count < 3:
 
             if item["reason"] in seen_reasons:
@@ -42,6 +48,7 @@ def format_output(summary, analysis):
 
             output += f"\n🔴 {item['category'].upper()} RISK\n"
             output += f"Risk: {item['reason']}\n"
+            output += f"Score: {item['risk_score']}/10 | Confidence: {item['confidence']}\n"
 
             clause_preview = item["clause"][:120].replace("\n", " ")
             output += f"Where: \"{clause_preview}...\"\n"
