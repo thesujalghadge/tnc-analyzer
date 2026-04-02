@@ -1,10 +1,137 @@
-import streamlit as st
+import html
+import re
+
 import requests
+import streamlit as st
 
 API_ANALYZE = "http://127.0.0.1:8000/analyze"
 API_ASK = "http://127.0.0.1:8000/ask"
 
-st.title("📄 AI Terms & Conditions Analyzer")
+st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    .block-container {
+        max-width: 1100px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+    .hero-card, .panel-card, .metric-card, .citation-card, .clause-card {
+        border: 1px solid rgba(120, 140, 170, 0.18);
+        background: linear-gradient(180deg, rgba(18,24,38,0.96), rgba(13,18,30,0.96));
+        border-radius: 18px;
+        padding: 1rem 1.15rem;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    }
+    .hero-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+    }
+    .hero-subtitle {
+        color: #a7b4c8;
+        margin-bottom: 0;
+    }
+    .metric-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .metric-label {
+        color: #93a3bc;
+        font-size: 0.9rem;
+        margin-top: 0.2rem;
+    }
+    .section-label {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 0.6rem;
+    }
+    .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.22rem 0.55rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-right: 0.4rem;
+        margin-bottom: 0.35rem;
+    }
+    .badge-high { background: rgba(220, 38, 38, 0.14); color: #fca5a5; border: 1px solid rgba(248,113,113,0.28); }
+    .badge-medium { background: rgba(245, 158, 11, 0.14); color: #fcd34d; border: 1px solid rgba(251,191,36,0.28); }
+    .badge-low { background: rgba(16, 185, 129, 0.14); color: #86efac; border: 1px solid rgba(52,211,153,0.28); }
+    .badge-neutral { background: rgba(96, 165, 250, 0.12); color: #bfdbfe; border: 1px solid rgba(96,165,250,0.25); }
+    mark {
+        background: rgba(251, 191, 36, 0.18);
+        color: #fde68a;
+        padding: 0.05rem 0.18rem;
+        border-radius: 0.2rem;
+    }
+    .muted { color: #90a0b8; font-size: 0.88rem; }
+    .answer-box {
+        border-left: 4px solid #60a5fa;
+        padding-left: 0.95rem;
+        margin-top: 0.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def _risk_badge(level: str):
+    mapping = {
+        "HIGH": ("High", "badge-high"),
+        "MEDIUM": ("Medium", "badge-medium"),
+        "LOW": ("Low", "badge-low"),
+    }
+    label, css = mapping.get(level, (level.title(), "badge-neutral"))
+    return f'<span class="badge {css}">{label}</span>'
+
+
+def _neutral_badge(text: str):
+    return f'<span class="badge badge-neutral">{html.escape(text)}</span>'
+
+
+def _highlight_clause(text: str, terms):
+    rendered = html.escape(text)
+    for term in sorted(set(terms or []), key=len, reverse=True):
+        pattern = re.compile(re.escape(html.escape(term)), re.IGNORECASE)
+        rendered = pattern.sub(lambda match: f"<mark>{match.group(0)}</mark>", rendered)
+    return rendered
+
+
+def _dedupe_clauses(clauses, limit=6):
+    selected = []
+    seen = set()
+
+    for clause in sorted(clauses, key=lambda item: (item["risk_score"], item["confidence"]), reverse=True):
+        fingerprint = (
+            clause["category"],
+            clause["reason"],
+            clause["clause"][:110].lower(),
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        selected.append(clause)
+        if len(selected) >= limit:
+            break
+
+    return selected
+
+
+st.markdown(
+    """
+    <div class="hero-card">
+        <div class="hero-title">AI Terms &amp; Conditions Analyzer</div>
+        <p class="hero-subtitle">
+            Upload a PDF, surface the riskiest clauses, and chat with cited evidence instead of reading the full document blindly.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -------------------------------
 # SESSION STATE (important)
@@ -40,7 +167,6 @@ if uploaded_file is not None:
             result = payload["formatted_output"]
 
             st.success("Analysis Complete ✅")
-            st.text_area("Result", result, height=500)
 
             # ✅ mark as ready for Q&A
             st.session_state.document_loaded = True
@@ -55,28 +181,84 @@ if uploaded_file is not None:
 
 
 if st.session_state.analysis_payload:
-    st.subheader("⚠️ Clause Risk Review")
-    for clause in st.session_state.analysis_payload["clauses"][:8]:
-        badge = {
-            "HIGH": "🔴 High",
-            "MEDIUM": "🟡 Medium",
-            "LOW": "🟢 Low",
-        }.get(clause["risk"], clause["risk"])
+    payload = st.session_state.analysis_payload
+    top_clauses = _dedupe_clauses(payload["clauses"], limit=6)
 
-        with st.container():
+    metric_cols = st.columns(4)
+    metrics = [
+        ("High Risk", payload["risk_overview"]["high"]),
+        ("Medium Risk", payload["risk_overview"]["medium"]),
+        ("Low Risk", payload["risk_overview"]["low"]),
+        ("Clauses Reviewed", len(payload["clauses"])),
+    ]
+    for col, (label, value) in zip(metric_cols, metrics):
+        with col:
             st.markdown(
-                f"**{badge}** | Score `{clause['risk_score']}/10` | "
-                f"Confidence `{clause['confidence']}` | Category `{clause['category']}`"
+                f"""
+                <div class="metric-card">
+                    <p class="metric-value">{value}</p>
+                    <div class="metric-label">{label}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.caption(f"Page {clause['page_number']} | Category confidence {clause['category_confidence']}")
-            st.write(clause["clause"][:350])
-            st.caption(clause["reason"])
+
+    left_col, right_col = st.columns([1.15, 0.85], gap="large")
+
+    with left_col:
+        st.markdown('<div class="section-label">Executive Summary</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="panel-card"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;">{html.escape(payload["formatted_output"])}</pre></div>',
+            unsafe_allow_html=True,
+        )
+
+    with right_col:
+        st.markdown('<div class="section-label">Top Risk Signals</div>', unsafe_allow_html=True)
+        for clause in top_clauses[:3]:
+            badges = (
+                _risk_badge(clause["risk"])
+                + _neutral_badge(f"Score {clause['risk_score']}/10")
+                + _neutral_badge(f"{clause['category'].title()}")
+            )
+            st.markdown(
+                f"""
+                <div class="panel-card" style="margin-bottom:0.8rem;">
+                    {badges}
+                    <div style="margin-top:0.45rem;font-weight:600;">{html.escape(clause["reason"])}</div>
+                    <div class="muted" style="margin-top:0.45rem;">Page {clause['page_number']} | Confidence {clause['confidence']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown('<div class="section-label" style="margin-top:1.2rem;">Clause Risk Review</div>', unsafe_allow_html=True)
+    for clause in top_clauses:
+        badges = (
+            _risk_badge(clause["risk"])
+            + _neutral_badge(f"Score {clause['risk_score']}/10")
+            + _neutral_badge(f"Confidence {clause['confidence']}")
+            + _neutral_badge(clause["category"].title())
+        )
+        highlighted = _highlight_clause(clause["clause"][:420], clause.get("highlighted_terms", []))
+        terms = ", ".join(clause.get("highlighted_terms", [])[:5]) or "No explicit trigger terms"
+        st.markdown(
+            f"""
+            <div class="clause-card" style="margin-bottom:0.85rem;">
+                {badges}
+                <div class="muted" style="margin-top:0.4rem;">Page {clause['page_number']} | Category confidence {clause['category_confidence']}</div>
+                <div style="margin-top:0.85rem; line-height:1.65;">{highlighted}</div>
+                <div class="muted" style="margin-top:0.8rem;">Why flagged: {html.escape(clause['reason'])}</div>
+                <div class="muted" style="margin-top:0.25rem;">Highlighted phrases: {html.escape(terms)}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # -------------------------------
 # Q&A SECTION
 # -------------------------------
-st.subheader("💬 Chat with Document")
+st.markdown('<div class="section-label" style="margin-top:1.4rem;">Chat With Document</div>', unsafe_allow_html=True)
 
 if not st.session_state.document_loaded:
     st.warning("⚠️ Please upload and analyze a document first.")
@@ -102,18 +284,31 @@ else:
                     if "detail" in result:
                         st.error(result["detail"])
                     else:
-                        st.write("### 🧠 Answer:")
-                        st.write(result["answer"])
-
                         status_label = "Grounded" if result["grounded"] else "Low support"
-                        st.caption(f"{status_label} | Confidence: {result['confidence']:.2f}")
+                        st.markdown(
+                            f"""
+                            <div class="panel-card answer-box">
+                                <div class="section-label" style="margin-bottom:0.35rem;">Answer</div>
+                                <div style="line-height:1.7;">{html.escape(result["answer"])}</div>
+                                <div class="muted" style="margin-top:0.75rem;">{status_label} | Confidence {result['confidence']:.2f}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
-                        st.write("### 📌 Citations:")
+                        st.markdown('<div class="section-label" style="margin-top:0.9rem;">Citations</div>', unsafe_allow_html=True)
 
                         for ev in result["citations"]:
-                            st.info(
-                                f"Page {ev['page_number']} | Chunk {ev['chunk_id'] + 1} | "
-                                f"Relevance {ev['relevance_score']:.2f}\n\n{ev['text'][:300]}"
+                            st.markdown(
+                                f"""
+                                <div class="citation-card" style="margin-bottom:0.75rem;">
+                                    {_neutral_badge(f"Page {ev['page_number']}")}
+                                    {_neutral_badge(f"Chunk {ev['chunk_id'] + 1}")}
+                                    {_neutral_badge(f"Relevance {ev['relevance_score']:.2f}")}
+                                    <div style="margin-top:0.7rem; line-height:1.65;">{html.escape(ev['text'][:320])}</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
                             )
 
                 except Exception as e:

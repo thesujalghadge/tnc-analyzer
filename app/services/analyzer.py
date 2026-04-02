@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 from app.services.embedding import get_embeddings
@@ -5,7 +7,7 @@ from app.services.embedding import get_embeddings
 
 CATEGORY_RULES = {
     "payment": {
-        "keywords": ["payment", "emi", "interest", "repayment", "fee", "charge", "billing", "invoice"],
+        "keywords": ["payment", "emi", "interest", "repayment", "fee", "charge", "billing", "invoice", "installment"],
         "description": "Payments, fees, billing, subscription charges, interest rates, repayment obligations",
     },
     "liability": {
@@ -17,7 +19,7 @@ CATEGORY_RULES = {
         "description": "Account suspension, termination, cancellation, service shutdown",
     },
     "privacy": {
-        "keywords": ["privacy", "personal data", "information", "share data", "collect", "disclose", "cookies"],
+        "keywords": ["privacy", "personal data", "personal information", "share data", "collect data", "disclose", "cookies"],
         "description": "Privacy, personal data collection, sharing, disclosure, tracking",
     },
     "penalty": {
@@ -49,9 +51,19 @@ RISK_SIGNALS = {
         "keywords": ["may change", "can change", "at any time", "without notice", "sole discretion"],
         "reason": "Terms can change without giving the user much control.",
     },
+    "deemed_notice": {
+        "weight": 3.2,
+        "keywords": ["deemed to have notice", "notice board", "published in newspapers", "passbook", "statement of account"],
+        "reason": "The lender can treat indirect notice as sufficient, even without directly informing the user.",
+    },
+    "emi_change": {
+        "weight": 2.8,
+        "keywords": ["increase the emi", "reduce or increase the emi", "extend the repayment period", "revision in interest rate"],
+        "reason": "The lender can change EMIs or repayment duration after rate revisions.",
+    },
     "financial_penalty": {
         "weight": 2.5,
-        "keywords": ["penalty", "late fee", "fine", "extra charge", "interest rate"],
+        "keywords": ["penalty", "late fee", "fine", "extra charge", "processing fee", "charges"],
         "reason": "The clause can increase what the user has to pay.",
     },
     "broad_liability": {
@@ -90,6 +102,18 @@ RISK_SIGNALS = {
 _CATEGORY_EMBEDDINGS = None
 
 
+def _phrase_present(text: str, phrase: str):
+    if " " in phrase or "-" in phrase:
+        return phrase in text
+
+    pattern = rf"\b{re.escape(phrase)}s?\b"
+    return re.search(pattern, text) is not None
+
+
+def _matched_terms(text: str, terms):
+    return [term for term in terms if _phrase_present(text, term)]
+
+
 def _cosine_similarity(vector_a, vector_b):
     denominator = np.linalg.norm(vector_a) * np.linalg.norm(vector_b)
     if denominator == 0:
@@ -116,11 +140,8 @@ def classify_clause(clause: str):
     keyword_scores = {}
 
     for category, rule in CATEGORY_RULES.items():
-        score = 0
-        for keyword in rule["keywords"]:
-            if keyword in clause_lower:
-                score += 1
-        keyword_scores[category] = score
+        matched = _matched_terms(clause_lower, rule["keywords"])
+        keyword_scores[category] = len(matched)
 
     clause_embedding = np.array(get_embeddings([clause])[0], dtype="float32")
     category_embeddings = _get_category_embeddings()
@@ -143,12 +164,20 @@ def classify_clause(clause: str):
 def score_risk(clause: str, category: str):
     clause_lower = clause.lower()
     matched_signals = []
+    highlighted_terms = []
     score = 1.0
 
-    for signal in RISK_SIGNALS.values():
-        if any(keyword in clause_lower for keyword in signal["keywords"]):
+    for signal_name, signal in RISK_SIGNALS.items():
+        matched_keywords = _matched_terms(clause_lower, signal["keywords"])
+        if matched_keywords:
             score += signal["weight"]
-            matched_signals.append(signal["reason"])
+            matched_signals.append({
+                "name": signal_name,
+                "weight": signal["weight"],
+                "reason": signal["reason"],
+                "keywords": matched_keywords,
+            })
+            highlighted_terms.extend(matched_keywords)
 
     category_bias = {
         "liability": 1.2,
@@ -172,18 +201,21 @@ def score_risk(clause: str, category: str):
         risk_level = "LOW"
 
     if matched_signals:
-        reason = matched_signals[0]
+        strongest_signal = max(matched_signals, key=lambda signal: signal["weight"])
+        reason = strongest_signal["reason"]
     elif category == "general":
         reason = "This clause looks informational and has limited direct user risk."
     elif category == "other":
         reason = "The clause could not be classified confidently, so risk is estimated conservatively."
+    elif category == "payment":
+        reason = "This clause affects pricing, repayment, or fee-related terms for the user."
     else:
         reason = f"This clause is mainly about {category} terms and may affect the user."
 
     signal_strength = min(len(matched_signals) * 0.2, 0.5)
     confidence = round(min(0.45 + signal_strength + (score / 20.0), 0.99), 2)
 
-    return risk_level, score, confidence, reason
+    return risk_level, score, confidence, reason, sorted(set(highlighted_terms))
 
 
 def analyze_clauses(chunks):
@@ -194,7 +226,7 @@ def analyze_clauses(chunks):
             continue
 
         category, category_confidence = classify_clause(chunk)
-        risk_level, risk_score, risk_confidence, reason = score_risk(chunk, category)
+        risk_level, risk_score, risk_confidence, reason, highlighted_terms = score_risk(chunk, category)
 
         results.append({
             "clause": chunk,
@@ -204,6 +236,7 @@ def analyze_clauses(chunks):
             "risk_score": risk_score,
             "confidence": max(category_confidence, risk_confidence),
             "reason": reason,
+            "highlighted_terms": highlighted_terms,
         })
 
     return results

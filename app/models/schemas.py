@@ -20,6 +20,7 @@ class ClauseAnalysis(BaseModel):
     risk_score: float
     confidence: float
     reason: str
+    highlighted_terms: List[str]
 
 
 class RiskOverview(BaseModel):

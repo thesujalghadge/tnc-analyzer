@@ -38,27 +38,35 @@ def format_output(summary, analysis):
     )
 
     for item in sorted_analysis:
-        if item["risk"] == "HIGH" and count < 3:
+        if count >= 3:
+            break
 
-            if item["reason"] in seen_reasons:
-                continue
+        fingerprint = (item["category"], item["reason"], item["clause"][:80])
+        if fingerprint in seen_reasons:
+            continue
 
-            seen_reasons.add(item["reason"])
-            count += 1
+        seen_reasons.add(fingerprint)
+        count += 1
 
-            output += f"\n🔴 {item['category'].upper()} RISK\n"
-            output += f"Risk: {item['reason']}\n"
-            output += f"Score: {item['risk_score']}/10 | Confidence: {item['confidence']}\n"
+        badge = {
+            "HIGH": "🔴",
+            "MEDIUM": "🟡",
+            "LOW": "🟢",
+        }.get(item["risk"], "⚪")
 
-            clause_preview = item["clause"][:120].replace("\n", " ")
-            output += f"Where: \"{clause_preview}...\"\n"
+        output += f"\n{badge} {item['category'].upper()} RISK\n"
+        output += f"Risk: {item['reason']}\n"
+        output += f"Score: {item['risk_score']}/10 | Confidence: {item['confidence']}\n"
 
-            simple = explain_simple(
-                item["clause"],
-                reason=item["reason"],
-                category=item["category"]
-            )
+        clause_preview = item["clause"][:120].replace("\n", " ")
+        output += f"Where: \"{clause_preview}...\"\n"
 
-            output += f"Meaning: {simple}\n"
+        simple = explain_simple(
+            item["clause"],
+            reason=item["reason"],
+            category=item["category"]
+        )
+
+        output += f"Meaning: {simple}\n"
 
     return output

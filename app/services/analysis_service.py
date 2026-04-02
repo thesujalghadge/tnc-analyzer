@@ -23,6 +23,7 @@ def _build_clause_models(chunk_records, analysis):
                 risk_score=item["risk_score"],
                 confidence=item["confidence"],
                 reason=item["reason"],
+                highlighted_terms=item["highlighted_terms"],
             )
         )
 
