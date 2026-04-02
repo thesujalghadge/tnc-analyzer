@@ -1,5 +1,6 @@
-from pypdf import PdfReader
 import re
+
+from pypdf import PdfReader
 
 
 def clean_text(text: str) -> str:
@@ -15,11 +16,23 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-def extract_text(file_path: str) -> str:
+def extract_pages(file_path: str):
     reader = PdfReader(file_path)
-    text = ""
+    pages = []
 
-    for page in reader.pages:
-        text += page.extract_text() or ""
+    for page_number, page in enumerate(reader.pages, start=1):
+        raw_text = page.extract_text() or ""
+        cleaned_text = clean_text(raw_text)
 
-    return clean_text(text)
+        if cleaned_text:
+            pages.append({
+                "page_number": page_number,
+                "text": cleaned_text,
+            })
+
+    return pages
+
+
+def extract_text(file_path: str) -> str:
+    pages = extract_pages(file_path)
+    return " ".join(page["text"] for page in pages).strip()

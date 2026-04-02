@@ -7,7 +7,7 @@ from uuid import uuid4
 @dataclass
 class DocumentSession:
     document_id: str
-    chunks: List[str]
+    chunks: List[dict]
     vector_index: object
 
 
@@ -16,7 +16,7 @@ class InMemoryDocumentStore:
         self._documents: Dict[str, DocumentSession] = {}
         self._lock = Lock()
 
-    def create(self, chunks: List[str], vector_index: object) -> DocumentSession:
+    def create(self, chunks: List[dict], vector_index: object) -> DocumentSession:
         session = DocumentSession(
             document_id=str(uuid4()),
             chunks=chunks,

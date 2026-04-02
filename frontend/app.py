@@ -85,7 +85,9 @@ else:
                         st.write("### 📌 Evidence:")
 
                         for ev in result["evidence"]:
-                            st.info(f"Chunk {ev['chunk_id'] + 1}: {ev['text'][:200]}")
+                            st.info(
+                                f"Page {ev['page_number']} | Chunk {ev['chunk_id'] + 1}: {ev['text'][:250]}"
+                            )
 
                 except Exception as e:
                     st.error(f"Connection Error: {e}")

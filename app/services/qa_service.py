@@ -22,8 +22,9 @@ def retrieve_chunks(query, index, chunks, top_k=3):
     for i in indices[0]:
         if 0 <= i < len(chunks):
             results.append({
-                "chunk_id": int(i),
-                "text": chunks[i],
+                "chunk_id": chunks[i]["chunk_id"],
+                "page_number": chunks[i]["page_number"],
+                "text": chunks[i]["text"],
             })
 
     return results
@@ -35,8 +36,8 @@ def retrieve_chunks(query, index, chunks, top_k=3):
 
 def build_context(chunks):
     context = ""
-    for i, chunk in enumerate(chunks):
-        context += f"[Clause {i+1}]\n{chunk['text']}\n\n"
+    for chunk in chunks:
+        context += f"[Clause {chunk['chunk_id'] + 1} | Page {chunk['page_number']}]\n{chunk['text']}\n\n"
     return context
 
 
@@ -132,7 +133,11 @@ def answer_question(question, index, chunks):
     return AskResponse(
         answer=answer,
         evidence=[
-            SourceChunk(chunk_id=chunk["chunk_id"], text=chunk["text"])
+            SourceChunk(
+                chunk_id=chunk["chunk_id"],
+                page_number=chunk["page_number"],
+                text=chunk["text"],
+            )
             for chunk in top_chunks
         ],
     )

@@ -5,11 +5,13 @@ from pydantic import BaseModel, Field
 
 class SourceChunk(BaseModel):
     chunk_id: int = Field(..., description="Zero-based chunk index in the analyzed document")
+    page_number: int
     text: str
 
 
 class ClauseAnalysis(BaseModel):
     chunk_id: int
+    page_number: int
     clause: str
     category: str
     risk: str
