@@ -15,7 +15,10 @@ class ClauseAnalysis(BaseModel):
     page_number: int
     clause: str
     category: str
+    category_confidence: float
     risk: str
+    risk_score: float
+    confidence: float
     reason: str
 
 

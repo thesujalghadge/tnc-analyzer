@@ -18,7 +18,10 @@ def _build_clause_models(chunk_records, analysis):
                 page_number=chunk_record["page_number"],
                 clause=item["clause"],
                 category=item["category"],
+                category_confidence=item["category_confidence"],
                 risk=item["risk"],
+                risk_score=item["risk_score"],
+                confidence=item["confidence"],
                 reason=item["reason"],
             )
         )
