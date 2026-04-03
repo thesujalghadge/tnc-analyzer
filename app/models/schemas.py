@@ -29,12 +29,24 @@ class RiskOverview(BaseModel):
     low: int
 
 
+class DocumentMetadata(BaseModel):
+    source_type: str
+    original_name: str | None = None
+    source_url: str | None = None
+    file_size: int | None = None
+    page_count: int
+    mime_type: str | None = None
+    checksum: str | None = None
+    created_at: str | None = None
+
+
 class AnalyzeResponse(BaseModel):
     document_id: str
     summary: str
     risk_overview: RiskOverview
     clauses: List[ClauseAnalysis]
     formatted_output: str
+    metadata: DocumentMetadata | None = None
 
 
 class AnalyzeUrlRequest(BaseModel):

@@ -17,9 +17,9 @@ class InMemoryDocumentStore:
         self._documents: Dict[str, DocumentSession] = {}
         self._lock = Lock()
 
-    def create(self, chunks: List[dict], clauses: List[dict], vector_index: object) -> DocumentSession:
+    def create(self, chunks: List[dict], clauses: List[dict], vector_index: object, document_id: str | None = None) -> DocumentSession:
         session = DocumentSession(
-            document_id=str(uuid4()),
+            document_id=document_id or str(uuid4()),
             chunks=chunks,
             clauses=clauses,
             vector_index=vector_index,

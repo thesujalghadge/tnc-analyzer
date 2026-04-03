@@ -1,10 +1,14 @@
-import os
-import shutil
 import base64
+import json
+import re
+from pathlib import Path
+from urllib.parse import urlparse
+from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
-from app.models.schemas import AnalyzeResponse, AnalyzeUrlRequest, AskRequest, AskResponse
+from app.db.database import init_db
+from app.models.schemas import AnalyzeResponse, AnalyzeUrlRequest, AskRequest, AskResponse, DocumentMetadata
 from app.services.analysis_service import (
     analyze_document as run_document_analysis,
     analyze_image_text,
@@ -12,12 +16,93 @@ from app.services.analysis_service import (
 )
 from app.services.document_store import InMemoryDocumentStore
 from app.services.llm_service import extract_text_from_images
+from app.services.persistence_service import (
+    compute_file_checksum,
+    compute_text_checksum,
+    ensure_storage_path,
+    persist_analysis,
+    persist_chat_exchange,
+)
 from app.services.qa_service import answer_question
 
 app = FastAPI()
 
 UPLOAD_FOLDER = "data/uploads"
 document_store = InMemoryDocumentStore()
+ensure_storage_path(UPLOAD_FOLDER)
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
+
+def _sanitize_filename(filename: str | None, fallback: str):
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or fallback).strip("._")
+    return safe_name or fallback
+
+
+async def _persist_uploaded_file(file: UploadFile, default_name: str):
+    file_bytes = await file.read()
+    safe_name = _sanitize_filename(file.filename, default_name)
+    stored_name = f"{uuid4().hex}_{safe_name}"
+    file_path = Path(UPLOAD_FOLDER) / stored_name
+    file_path.write_bytes(file_bytes)
+
+    return {
+        "path": str(file_path),
+        "original_name": safe_name,
+        "file_size": len(file_bytes),
+        "mime_type": file.content_type,
+        "checksum": compute_file_checksum(str(file_path)),
+    }
+
+
+async def _persist_uploaded_images(files: list[UploadFile]):
+    stored_paths = []
+    original_names = []
+    mime_types = set()
+    total_size = 0
+    image_payloads = []
+
+    for file in files:
+        content = await file.read()
+        safe_name = _sanitize_filename(file.filename, "document_image")
+        stored_name = f"{uuid4().hex}_{safe_name}"
+        file_path = Path(UPLOAD_FOLDER) / stored_name
+        file_path.write_bytes(content)
+
+        stored_paths.append(str(file_path))
+        original_names.append(safe_name)
+        total_size += len(content)
+        if file.content_type:
+            mime_types.add(file.content_type)
+
+        image_payloads.append({
+            "mime_type": file.content_type,
+            "data": base64.b64encode(content).decode("utf-8"),
+        })
+
+    return {
+        "stored_paths": stored_paths,
+        "original_name": ", ".join(original_names[:3]) + (f" (+{len(original_names) - 3} more)" if len(original_names) > 3 else ""),
+        "file_size": total_size,
+        "mime_type": ", ".join(sorted(mime_types)) if mime_types else None,
+        "checksum": compute_text_checksum("|".join(stored_paths)),
+        "image_payloads": image_payloads,
+        "extra_metadata": {
+            "file_names": original_names,
+            "file_count": len(original_names),
+        },
+    }
+
+
+def _page_count_from_chunks(chunks):
+    return len({chunk["page_number"] for chunk in chunks}) if chunks else 0
+
+
+def _structured_clauses(response: AnalyzeResponse):
+    return [clause.model_dump() for clause in response.clauses]
 
 
 # =========================================================
@@ -26,18 +111,39 @@ document_store = InMemoryDocumentStore()
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_document(file: UploadFile = File(...)):
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    stored_file = await _persist_uploaded_file(file, "uploaded_document.pdf")
 
     try:
-        response, vector_store, chunks, analysis = run_document_analysis(file_path)
+        response, vector_store, chunks, analysis = run_document_analysis(stored_file["path"])
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    session = document_store.create(chunks=chunks, clauses=analysis, vector_index=vector_store.index)
+    document_id = str(uuid4())
+    metadata = persist_analysis(
+        document_id=document_id,
+        source_type="pdf",
+        original_name=stored_file["original_name"],
+        stored_path=stored_file["path"],
+        file_size=stored_file["file_size"],
+        mime_type=stored_file["mime_type"],
+        checksum=stored_file["checksum"],
+        page_count=_page_count_from_chunks(chunks),
+        summary=response.summary,
+        formatted_output=response.formatted_output,
+        risk_overview=response.risk_overview.model_dump(),
+        clauses=response.clauses,
+        chunks=chunks,
+        extra_metadata={"upload_name": stored_file["original_name"]},
+    )
+
+    session = document_store.create(
+        chunks=chunks,
+        clauses=_structured_clauses(response),
+        vector_index=vector_store.index,
+        document_id=document_id,
+    )
     response.document_id = session.document_id
+    response.metadata = DocumentMetadata(**metadata)
     return response
 
 
@@ -48,8 +154,31 @@ async def analyze_document_url(request: AnalyzeUrlRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    session = document_store.create(chunks=chunks, clauses=analysis, vector_index=vector_store.index)
+    checksum = compute_text_checksum("\n".join(chunk["text"] for chunk in chunks))
+    document_id = str(uuid4())
+    metadata = persist_analysis(
+        document_id=document_id,
+        source_type="url",
+        original_name=_sanitize_filename(Path(urlparse(request.url).path).name or "web_document", "web_document"),
+        source_url=request.url,
+        checksum=checksum,
+        page_count=_page_count_from_chunks(chunks),
+        summary=response.summary,
+        formatted_output=response.formatted_output,
+        risk_overview=response.risk_overview.model_dump(),
+        clauses=response.clauses,
+        chunks=chunks,
+        extra_metadata={"source_host": urlparse(request.url).netloc},
+    )
+
+    session = document_store.create(
+        chunks=chunks,
+        clauses=_structured_clauses(response),
+        vector_index=vector_store.index,
+        document_id=document_id,
+    )
     response.document_id = session.document_id
+    response.metadata = DocumentMetadata(**metadata)
     return response
 
 
@@ -63,11 +192,8 @@ async def analyze_document_images(files: list[UploadFile] = File(...)):
         if not file.content_type or not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="Only image files are supported for photo analysis.")
 
-        content = await file.read()
-        image_payloads.append({
-            "mime_type": file.content_type,
-            "data": base64.b64encode(content).decode("utf-8"),
-        })
+    stored_images = await _persist_uploaded_images(files)
+    image_payloads = stored_images["image_payloads"]
 
     try:
         raw_text = extract_text_from_images(image_payloads)
@@ -75,8 +201,33 @@ async def analyze_document_images(files: list[UploadFile] = File(...)):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    session = document_store.create(chunks=chunks, clauses=analysis, vector_index=vector_store.index)
+    checksum = compute_text_checksum(raw_text)
+    document_id = str(uuid4())
+    metadata = persist_analysis(
+        document_id=document_id,
+        source_type="image",
+        original_name=stored_images["original_name"],
+        stored_path=json.dumps(stored_images["stored_paths"], ensure_ascii=True),
+        file_size=stored_images["file_size"],
+        mime_type=stored_images["mime_type"],
+        checksum=checksum,
+        page_count=_page_count_from_chunks(chunks),
+        summary=response.summary,
+        formatted_output=response.formatted_output,
+        risk_overview=response.risk_overview.model_dump(),
+        clauses=response.clauses,
+        chunks=chunks,
+        extra_metadata=stored_images["extra_metadata"],
+    )
+
+    session = document_store.create(
+        chunks=chunks,
+        clauses=_structured_clauses(response),
+        vector_index=vector_store.index,
+        document_id=document_id,
+    )
     response.document_id = session.document_id
+    response.metadata = DocumentMetadata(**metadata)
     return response
 
 
@@ -91,9 +242,11 @@ async def ask_question(request: AskRequest):
     if session is None:
         raise HTTPException(status_code=404, detail="Document not found. Please analyze a document first.")
 
-    return answer_question(
+    answer = answer_question(
         request.question,
         session.vector_index,
         session.chunks,
         session.clauses,
     )
+    persist_chat_exchange(request.document_id, request.question, answer)
+    return answer
