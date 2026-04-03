@@ -15,6 +15,7 @@ API_ANALYZE_URL = f"{BACKEND_BASE_URL}/analyze-url"
 API_ANALYZE_IMAGES = f"{BACKEND_BASE_URL}/analyze-images"
 API_ASK = f"{BACKEND_BASE_URL}/ask"
 API_REPORT = f"{BACKEND_BASE_URL}/report"
+API_ANALYSIS = f"{BACKEND_BASE_URL}/analysis"
 API_HEALTH = f"{BACKEND_BASE_URL}/health"
 
 st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
@@ -459,7 +460,7 @@ st.markdown(
         color: #18283a;
         margin-bottom: 0.45rem;
     }
-    .sidebar-auth-card {
+    .sidebar-card {
         border: 1px solid rgba(148,163,184,0.12);
         border-radius: 24px;
         padding: 1rem 1rem 0.95rem;
@@ -467,54 +468,66 @@ st.markdown(
         box-shadow: 0 12px 24px rgba(15,23,42,0.05);
         margin-bottom: 1rem;
     }
-    .sidebar-auth-title {
+    .sidebar-title {
         font-size: 1.02rem;
         font-weight: 800;
         color: #132235;
         margin-bottom: 0.35rem;
     }
-    .sidebar-auth-copy {
+    .sidebar-copy {
         color: #66788d;
         font-size: 0.9rem;
         line-height: 1.55;
         margin-bottom: 0.85rem;
     }
-    .google-auth-link {
-        display: block;
-        text-decoration: none;
-        text-align: center;
-        border-radius: 16px;
-        border: 1px solid rgba(15,23,42,0.10);
-        background: linear-gradient(180deg, #ffffff, #f7f3ed);
-        color: #132235 !important;
-        font-weight: 700;
-        padding: 0.85rem 1rem;
-        box-shadow: 0 12px 22px rgba(15,23,42,0.08);
+    .workspace-id-shell {
+        border: 1px solid rgba(148,163,184,0.10);
+        border-radius: 24px;
+        padding: 1.15rem 1.2rem;
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,245,239,0.98));
+        box-shadow: 0 12px 24px rgba(15,23,42,0.05);
     }
-    .google-auth-link:hover {
-        transform: translateY(-1px);
+    .workspace-id-label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.76rem;
+        font-weight: 800;
+        color: #7a8a9f;
+        margin-bottom: 0.45rem;
     }
-    .history-item-card {
+    .workspace-id-value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+        font-size: 0.95rem;
+        color: #16273a;
+        line-height: 1.7;
+        word-break: break-word;
+    }
+    .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.9rem;
+    }
+    .meta-pill {
         border: 1px solid rgba(148,163,184,0.10);
         border-radius: 20px;
-        padding: 0.9rem 0.9rem 0.75rem;
-        background: rgba(255,255,255,0.72);
-        margin-bottom: 0.75rem;
+        padding: 0.95rem 1rem;
+        background: rgba(255,255,255,0.76);
     }
-    .history-item-title {
+    .meta-pill-label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #7a8a9f;
+        margin-bottom: 0.35rem;
+    }
+    .meta-pill-value {
+        color: #16273a;
         font-weight: 700;
-        color: #132235;
-        margin-bottom: 0.2rem;
-        line-height: 1.4;
-    }
-    .history-item-meta {
-        color: #6d8095;
-        font-size: 0.82rem;
-        line-height: 1.45;
-        margin-bottom: 0.5rem;
+        line-height: 1.6;
     }
     @media (max-width: 900px) {
-        .hero-layout, .summary-shell, .mini-grid, .insight-grid {
+        .hero-layout, .summary-shell, .mini-grid, .insight-grid, .meta-grid {
             grid-template-columns: 1fr;
         }
         .hero-title {
@@ -650,12 +663,28 @@ def _fetch_report_bytes(document_id: str):
     return response.content
 
 
+@st.cache_data(show_spinner=False)
+def _fetch_saved_analysis(document_id: str):
+    response = requests.get(f"{API_ANALYSIS}/{document_id}", timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
 def _report_filename(payload: dict):
     metadata = payload.get("metadata") or {}
     original_name = (metadata.get("original_name") or "tnc_analysis").split(",")[0].strip()
     stem = re.sub(r"\.[A-Za-z0-9]+$", "", original_name)
     safe_stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_") or "tnc_analysis"
     return f"{safe_stem}_report.pdf"
+
+
+def _format_source_label(source_type: str | None):
+    mapping = {
+        "pdf": "PDF upload",
+        "url": "Link analysis",
+        "image": "Document photos",
+    }
+    return mapping.get((source_type or "").lower(), (source_type or "Unknown").replace("_", " ").title())
 
 
 def _apply_analysis_payload(payload):
@@ -708,8 +737,15 @@ if "analysis_payload" not in st.session_state:
     st.session_state.analysis_payload = None
 
 with st.sidebar:
-    st.markdown("### Deployment Note")
-    st.caption("Login is postponed for now so the app stays simpler to deploy and demo. We can add account history back once the live version is stable.")
+    st.markdown(
+        """
+        <div class="sidebar-card">
+            <div class="sidebar-title">Workspace Tools</div>
+            <div class="sidebar-copy">Each analysis is stored locally in SQLite. Keep the document ID if you want to reopen the same result later without re-uploading the file.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     try:
         health_response = requests.get(API_HEALTH, timeout=8)
         if health_response.status_code == 200:
@@ -718,6 +754,32 @@ with st.sidebar:
             st.warning("Backend is running but health check did not return 200.")
     except Exception:
         st.warning("Backend not reachable yet. Start the API before using the app.")
+
+    reopen_document_id = st.text_input(
+        "Open saved analysis",
+        value=st.session_state.get("document_id") or "",
+        placeholder="Paste a saved document ID",
+    )
+    if st.button("Open analysis", use_container_width=True):
+        if not reopen_document_id.strip():
+            st.warning("Paste a document ID first.")
+        else:
+            try:
+                payload = _fetch_saved_analysis(reopen_document_id.strip())
+                _apply_analysis_payload(payload)
+                st.success("Saved analysis loaded.")
+            except requests.HTTPError as exc:
+                try:
+                    detail = exc.response.json().get("detail", "Could not load that saved analysis.")
+                except Exception:
+                    detail = "Could not load that saved analysis."
+                st.error(detail)
+            except Exception as exc:
+                st.error(f"Connection Error: {exc}")
+
+    if st.session_state.document_id:
+        st.caption("Current document ID")
+        st.code(st.session_state.document_id)
 
 # -------------------------------
 # FILE UPLOAD
@@ -841,7 +903,7 @@ if st.session_state.analysis_payload:
         overview_header_col, overview_action_col = st.columns([0.72, 0.28], gap="large")
         with overview_header_col:
             st.markdown('<div class="section-label">Results Workspace</div>', unsafe_allow_html=True)
-            st.markdown('<div class="section-intro">Review the summary, scan the strongest risks, and export a report when you want something shareable.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-intro">Review the summary, scan the strongest risks, reopen the document later with its ID, and export a report when you want something shareable.</div>', unsafe_allow_html=True)
         with overview_action_col:
             try:
                 report_bytes = _fetch_report_bytes(payload["document_id"])
@@ -876,6 +938,30 @@ if st.session_state.analysis_payload:
                 )
 
         st.markdown("<div style='height:1.25rem;'></div>", unsafe_allow_html=True)
+        metadata = payload.get("metadata") or {}
+        st.markdown(
+            _html_block(
+                f"""
+                <div class="meta-grid">
+                    <div class="meta-pill">
+                        <div class="meta-pill-label">Source</div>
+                        <div class="meta-pill-value">{html.escape(_format_source_label(metadata.get("source_type")))}</div>
+                    </div>
+                    <div class="meta-pill">
+                        <div class="meta-pill-label">Pages</div>
+                        <div class="meta-pill-value">{html.escape(str(metadata.get("page_count", 0)))}</div>
+                    </div>
+                    <div class="workspace-id-shell">
+                        <div class="workspace-id-label">Saved document ID</div>
+                        <div class="workspace-id-value">{html.escape(payload["document_id"])}</div>
+                    </div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("<div style='height:1.05rem;'></div>", unsafe_allow_html=True)
         lead_clause = top_clauses[0] if top_clauses else None
         lead_text = (
             lead_clause[clause_explanation_key]

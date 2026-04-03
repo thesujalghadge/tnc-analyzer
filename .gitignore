@@ -7,3 +7,4 @@ dist/
 data/uploads/
 data/*.db
 data/*.db-journal
+data/test_artifacts/

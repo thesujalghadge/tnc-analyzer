@@ -1,14 +1,11 @@
 import base64
 import json
-import os
 import re
 from pathlib import Path
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
+from urllib.parse import urlparse
 from uuid import uuid4
 
-import requests
-from fastapi import FastAPI, File, Header, HTTPException, Query, Response, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 
 from app.db.database import init_db
 from app.db.vector_store import VectorStore
@@ -18,23 +15,11 @@ from app.models.schemas import (
     AskRequest,
     AskResponse,
     DocumentMetadata,
-    HistoryItem,
-    UserResponse,
 )
 from app.services.analysis_service import (
     analyze_document as run_document_analysis,
     analyze_image_text,
     analyze_url as run_url_analysis,
-)
-from app.services.auth_service import (
-    create_session,
-    create_google_state,
-    get_user_from_token,
-    google_oauth_ready,
-    google_oauth_settings,
-    pop_google_state,
-    revoke_session,
-    upsert_google_user,
 )
 from app.services.document_store import InMemoryDocumentStore
 from app.services.embedding import get_embeddings
@@ -45,7 +30,6 @@ from app.services.persistence_service import (
     compute_text_checksum,
     ensure_storage_path,
     fetch_document_bundle,
-    list_user_history,
     persist_analysis,
     persist_chat_exchange,
 )
@@ -137,30 +121,8 @@ def _structured_clauses(response: AnalyzeResponse):
     return [clause.model_dump() for clause in response.clauses]
 
 
-def _extract_bearer_token(authorization: str | None):
-    if not authorization:
-        return None
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Invalid authorization header.")
-    return parts[1].strip()
-
-
-def _current_user(authorization: str | None, *, required: bool = False):
-    token = _extract_bearer_token(authorization)
-    if not token:
-        if required:
-            raise HTTPException(status_code=401, detail="Authentication required.")
-        return None
-
-    user = get_user_from_token(token)
-    if user is None:
-        raise HTTPException(status_code=401, detail="Your session is invalid or expired. Please sign in again.")
-    return user
-
-
-def _restore_document_session(document_id: str, *, user_id: str | None = None):
-    payload = build_analysis_payload(document_id, user_id=user_id)
+def _restore_document_session(document_id: str):
+    payload = build_analysis_payload(document_id)
     bundle = fetch_document_bundle(document_id)
 
     if payload is None or bundle is None:
@@ -184,116 +146,13 @@ def _restore_document_session(document_id: str, *, user_id: str | None = None):
     return payload, session
 
 
-def _append_query_params(url: str, **params):
-    parsed = urlparse(url)
-    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    query.update({key: value for key, value in params.items() if value is not None})
-    return urlunparse(parsed._replace(query=urlencode(query)))
-
-
-# =========================================================
-# 🔹 AUTH ENDPOINTS
-# =========================================================
-
-@app.get("/auth/google/start")
-async def auth_google_start(next_url: str | None = Query(default=None)):
-    if not google_oauth_ready():
-        raise HTTPException(
-            status_code=503,
-            detail="Google sign-in is not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable it.",
-        )
-
-    settings = google_oauth_settings()
-    destination = next_url or settings["frontend_base_url"]
-    state = create_google_state(destination)
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(
-        {
-            "client_id": settings["client_id"],
-            "redirect_uri": settings["redirect_uri"],
-            "response_type": "code",
-            "scope": "openid email profile",
-            "access_type": "online",
-            "prompt": "select_account",
-            "state": state,
-        }
-    )
-    return RedirectResponse(auth_url)
-
-
-@app.get("/auth/google/callback")
-async def auth_google_callback(code: str | None = None, state: str | None = None, error: str | None = None):
-    settings = google_oauth_settings()
-    frontend_url = settings["frontend_base_url"]
-
-    if error:
-        return RedirectResponse(_append_query_params(frontend_url, auth_error=error))
-
-    if not code or not state:
-        return RedirectResponse(_append_query_params(frontend_url, auth_error="missing_google_callback_data"))
-
-    next_url = pop_google_state(state)
-    if not next_url:
-        return RedirectResponse(_append_query_params(frontend_url, auth_error="invalid_or_expired_state"))
-
-    try:
-        token_response = requests.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": settings["client_id"],
-                "client_secret": settings["client_secret"],
-                "redirect_uri": settings["redirect_uri"],
-                "grant_type": "authorization_code",
-            },
-            timeout=20,
-        )
-        token_response.raise_for_status()
-        token_payload = token_response.json()
-
-        access_token = token_payload.get("access_token")
-        if not access_token:
-            raise ValueError("Missing Google access token.")
-
-        profile_response = requests.get(
-            "https://openidconnect.googleapis.com/v1/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=20,
-        )
-        profile_response.raise_for_status()
-        profile = profile_response.json()
-
-        email = profile.get("email")
-        if not email:
-            raise ValueError("Google account did not return an email address.")
-
-        user = upsert_google_user(email=email, name=profile.get("name"))
-        session_token = create_session(user["id"])
-        return RedirectResponse(_append_query_params(next_url, auth_token=session_token))
-    except Exception:
-        return RedirectResponse(_append_query_params(next_url, auth_error="google_sign_in_failed"))
-
-
-@app.post("/auth/logout")
-async def logout(authorization: str | None = Header(default=None)):
-    token = _extract_bearer_token(authorization)
-    if token:
-        revoke_session(token)
-    return {"ok": True}
-
-
-@app.get("/auth/me", response_model=UserResponse)
-async def auth_me(authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=True)
-    return UserResponse(**user)
-
-
 # =========================================================
 # 🔹 ANALYZE ENDPOINT
 # =========================================================
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_document(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=False)
+@app.post("/analyzer", response_model=AnalyzeResponse)
+async def analyze_document(file: UploadFile = File(...)):
     stored_file = await _persist_uploaded_file(file, "uploaded_document.pdf")
 
     try:
@@ -305,7 +164,6 @@ async def analyze_document(file: UploadFile = File(...), authorization: str | No
     metadata = persist_analysis(
         document_id=document_id,
         source_type="pdf",
-        user_id=user["id"] if user else None,
         original_name=stored_file["original_name"],
         stored_path=stored_file["path"],
         file_size=stored_file["file_size"],
@@ -332,8 +190,7 @@ async def analyze_document(file: UploadFile = File(...), authorization: str | No
 
 
 @app.post("/analyze-url", response_model=AnalyzeResponse)
-async def analyze_document_url(request: AnalyzeUrlRequest, authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=False)
+async def analyze_document_url(request: AnalyzeUrlRequest):
     try:
         response, vector_store, chunks, analysis = run_url_analysis(request.url)
     except ValueError as exc:
@@ -344,7 +201,6 @@ async def analyze_document_url(request: AnalyzeUrlRequest, authorization: str | 
     metadata = persist_analysis(
         document_id=document_id,
         source_type="url",
-        user_id=user["id"] if user else None,
         original_name=_sanitize_filename(Path(urlparse(request.url).path).name or "web_document", "web_document"),
         source_url=request.url,
         checksum=checksum,
@@ -369,8 +225,7 @@ async def analyze_document_url(request: AnalyzeUrlRequest, authorization: str | 
 
 
 @app.post("/analyze-images", response_model=AnalyzeResponse)
-async def analyze_document_images(files: list[UploadFile] = File(...), authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=False)
+async def analyze_document_images(files: list[UploadFile] = File(...)):
     if not files:
         raise HTTPException(status_code=400, detail="Please upload at least one document image.")
 
@@ -393,7 +248,6 @@ async def analyze_document_images(files: list[UploadFile] = File(...), authoriza
     metadata = persist_analysis(
         document_id=document_id,
         source_type="image",
-        user_id=user["id"] if user else None,
         original_name=stored_images["original_name"],
         stored_path=json.dumps(stored_images["stored_paths"], ensure_ascii=True),
         file_size=stored_images["file_size"],
@@ -428,7 +282,10 @@ async def ask_question(request: AskRequest):
     session = document_store.get(request.document_id)
 
     if session is None:
-        raise HTTPException(status_code=404, detail="Document not found. Please analyze a document first.")
+        _, session = _restore_document_session(request.document_id)
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="Document not found. Please analyze or reopen a stored document first.")
 
     answer = answer_question(
         request.question,
@@ -441,16 +298,10 @@ async def ask_question(request: AskRequest):
 
 
 @app.get("/report/{document_id}")
-async def download_report(document_id: str, authorization: str | None = Header(default=None)):
+async def download_report(document_id: str):
     bundle = fetch_document_bundle(document_id)
     if bundle is None or bundle.get("analysis") is None:
         raise HTTPException(status_code=404, detail="Stored analysis not found for this document.")
-
-    owner_id = bundle["document"].get("user_id")
-    if owner_id:
-        user = _current_user(authorization, required=True)
-        if user["id"] != owner_id:
-            raise HTTPException(status_code=403, detail="You do not have access to this report.")
 
     report_bytes = build_analysis_report_pdf(bundle)
     filename = build_report_filename(bundle)
@@ -461,20 +312,12 @@ async def download_report(document_id: str, authorization: str | None = Header(d
     )
 
 
-@app.get("/history", response_model=list[HistoryItem])
-async def get_history(authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=True)
-    items = list_user_history(user["id"])
-    return [HistoryItem(**item) for item in items]
-
-
 @app.get("/analysis/{document_id}", response_model=AnalyzeResponse)
-async def load_stored_analysis(document_id: str, authorization: str | None = Header(default=None)):
-    user = _current_user(authorization, required=True)
-    payload, session = _restore_document_session(document_id, user_id=user["id"])
+async def load_stored_analysis(document_id: str):
+    payload, session = _restore_document_session(document_id)
 
     if payload is None or session is None:
-        raise HTTPException(status_code=404, detail="Stored analysis not found for this user.")
+        raise HTTPException(status_code=404, detail="Stored analysis not found for this document.")
 
     response = AnalyzeResponse(**payload)
     response.document_id = session.document_id

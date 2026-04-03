@@ -2,7 +2,7 @@
 
 AI-powered Terms & Conditions analyzer for PDFs, links, and document photos.
 
-It extracts the text, chunks it for retrieval, scores risky clauses, answers follow-up questions with citations, and exports a PDF report.
+It extracts the text, chunks it for retrieval, scores risky clauses, answers follow-up questions with citations, exports a PDF report, and stores each analysis so it can be reopened later by document ID.
 
 ## Features
 
@@ -14,6 +14,7 @@ It extracts the text, chunks it for retrieval, scores risky clauses, answers fol
 - Clause classification and risk scoring
 - Risk overview dashboard + deep-dive review
 - Downloadable PDF analysis report
+- Reopen saved analyses later using the stored document ID
 
 ## Stack
 
@@ -79,6 +80,12 @@ Frontend:
 streamlit run frontend/app.py
 ```
 
+Smoke tests:
+
+```powershell
+python -m unittest tests.test_public_mvp
+```
+
 Default local URLs:
 
 - Backend: `http://127.0.0.1:8000`
@@ -134,7 +141,7 @@ Example:
 - SQLite is good for prototyping, but Postgres is better for larger-scale production.
 - The local fallback model is small and may be less accurate than Gemini.
 - Image text extraction currently depends on Gemini.
-- Login/history is postponed for now to keep deployment simple.
+- Saved analysis reopening currently uses document IDs rather than user accounts.
 
 ## Deployment Recommendation
 
