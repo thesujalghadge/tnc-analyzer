@@ -14,46 +14,74 @@ st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
     .stApp {
         background:
-            radial-gradient(circle at top left, rgba(14, 165, 233, 0.07), transparent 24%),
-            radial-gradient(circle at top right, rgba(251, 191, 36, 0.06), transparent 22%),
-            linear-gradient(180deg, #07111f 0%, #0b1220 50%, #0c1628 100%);
+            radial-gradient(circle at 10% 0%, rgba(34, 197, 94, 0.08), transparent 20%),
+            radial-gradient(circle at 90% 0%, rgba(14, 165, 233, 0.10), transparent 24%),
+            radial-gradient(circle at 50% 100%, rgba(251, 191, 36, 0.06), transparent 24%),
+            linear-gradient(180deg, #06101d 0%, #0a1322 48%, #0c1628 100%);
+        color: #edf3fb;
+        font-family: 'Manrope', sans-serif;
     }
     .block-container {
-        max-width: 1080px;
+        max-width: 1120px;
         padding-top: 1.4rem;
         padding-bottom: 3rem;
     }
+    h1, h2, h3, h4, p, div, span, label {
+        font-family: 'Manrope', sans-serif !important;
+    }
     .hero-card {
-        border: 1px solid rgba(120, 140, 170, 0.16);
+        border: 1px solid rgba(125, 149, 181, 0.18);
         background:
-            radial-gradient(circle at top right, rgba(14, 165, 233, 0.10), transparent 26%),
-            linear-gradient(180deg, rgba(15,22,36,0.98), rgba(10,16,28,0.98));
-        border-radius: 28px;
-        padding: 1.5rem 1.5rem 1.35rem;
-        box-shadow: 0 18px 48px rgba(0,0,0,0.24);
-        margin-bottom: 1.15rem;
-        text-align: center;
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 28%),
+            radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.10), transparent 22%),
+            linear-gradient(180deg, rgba(14,21,36,0.98), rgba(10,16,29,0.98));
+        border-radius: 30px;
+        padding: 1.7rem 1.7rem 1.5rem;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+        margin-bottom: 1.25rem;
     }
     .panel-card, .metric-card, .citation-card, .clause-card, .upload-card {
-        border: 1px solid rgba(120, 140, 170, 0.18);
-        background: linear-gradient(180deg, rgba(18,24,38,0.94), rgba(13,18,30,0.94));
+        border: 1px solid rgba(120, 140, 170, 0.14);
+        background: linear-gradient(180deg, rgba(18,24,38,0.92), rgba(11,17,29,0.96));
         border-radius: 20px;
         padding: 1rem 1.15rem;
         box-shadow: 0 12px 32px rgba(0,0,0,0.18);
     }
+    .summary-card {
+        border: 1px solid rgba(120, 140, 170, 0.14);
+        background:
+            linear-gradient(180deg, rgba(20,27,42,0.95), rgba(11,17,29,0.96));
+        border-radius: 24px;
+        padding: 1.2rem 1.2rem 1.15rem;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.20);
+    }
+    .input-stage {
+        border: 1px solid rgba(120, 140, 170, 0.15);
+        background:
+            linear-gradient(180deg, rgba(15,22,36,0.96), rgba(10,17,30,0.96));
+        border-radius: 26px;
+        padding: 1.25rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+    }
     .hero-title {
-        font-size: 2.5rem;
+        font-size: 2.7rem;
         font-weight: 800;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.45rem;
         letter-spacing: -0.03em;
+        max-width: 700px;
+        line-height: 1.05;
     }
     .hero-subtitle {
-        color: #adc0d8;
-        margin: 0 auto 0.95rem;
-        max-width: 720px;
+        color: #b6c6da;
+        margin: 0 0 1rem;
+        max-width: 680px;
         line-height: 1.65;
+        font-size: 1.02rem;
     }
     .hero-kicker {
         display: inline-block;
@@ -82,19 +110,22 @@ st.markdown(
         border: 1px solid rgba(148,163,184,0.14);
     }
     .metric-value {
-        font-size: 1.85rem;
+        font-size: 2rem;
         font-weight: 700;
         margin: 0;
     }
     .metric-label {
-        color: #93a3bc;
-        font-size: 0.9rem;
+        color: #9fb1c8;
+        font-size: 0.86rem;
         margin-top: 0.2rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }
     .section-label {
-        font-size: 1.15rem;
-        font-weight: 700;
-        margin-bottom: 0.6rem;
+        font-size: 1.2rem;
+        font-weight: 800;
+        margin-bottom: 0.45rem;
+        letter-spacing: -0.02em;
     }
     .badge {
         display: inline-block;
@@ -117,41 +148,38 @@ st.markdown(
     }
     .muted { color: #90a0b8; font-size: 0.88rem; }
     .answer-box {
-        border-left: 4px solid #60a5fa;
-        padding-left: 0.95rem;
-        margin-top: 0.5rem;
+        border: 1px solid rgba(96, 165, 250, 0.24);
+        background:
+            radial-gradient(circle at top right, rgba(96, 165, 250, 0.10), transparent 26%),
+            linear-gradient(180deg, rgba(16,23,38,0.98), rgba(10,16,28,0.98));
+        padding: 1rem 1.1rem;
+        margin-top: 0.35rem;
+        border-radius: 22px;
     }
     .section-intro {
-        color: #90a0b8;
+        color: #96a9c3;
         font-size: 0.92rem;
-        margin-top: -0.1rem;
+        margin-top: -0.02rem;
         margin-bottom: 0.8rem;
+        line-height: 1.55;
     }
     .input-mode-note {
         color: #9ab0c8;
         font-size: 0.88rem;
         margin-top: 0.2rem;
     }
-    .upload-shell {
-        border: 1px solid rgba(120, 140, 170, 0.16);
-        background: linear-gradient(180deg, rgba(16,22,36,0.97), rgba(12,18,30,0.97));
-        border-radius: 24px;
-        padding: 1.2rem;
-        margin-bottom: 1.25rem;
-        box-shadow: 0 16px 38px rgba(0,0,0,0.22);
-    }
     .mini-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.85rem;
+        gap: 0.9rem;
         margin-top: 0.85rem;
         margin-bottom: 0.4rem;
     }
     .mini-card {
-        border-radius: 18px;
+        border-radius: 20px;
         padding: 0.9rem;
-        background: rgba(148,163,184,0.05);
-        border: 1px solid rgba(148,163,184,0.10);
+        background: rgba(148,163,184,0.04);
+        border: 1px solid rgba(148,163,184,0.08);
     }
     .mini-title {
         font-weight: 700;
@@ -162,6 +190,71 @@ st.markdown(
         color: #9cb0c8;
         font-size: 0.88rem;
         line-height: 1.5;
+    }
+    .hero-layout {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 1.2rem;
+        align-items: stretch;
+    }
+    .hero-side {
+        border-radius: 24px;
+        border: 1px solid rgba(148,163,184,0.10);
+        background: rgba(148,163,184,0.04);
+        padding: 1rem;
+    }
+    .hero-side-title {
+        font-size: 0.85rem;
+        color: #9fb1c8;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.7rem;
+    }
+    .hero-side-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.62rem 0;
+        border-bottom: 1px solid rgba(148,163,184,0.08);
+        color: #d7e4f4;
+        font-size: 0.95rem;
+    }
+    .hero-side-item:last-child {
+        border-bottom: none;
+    }
+    .hero-side-soft {
+        color: #8fa4bf;
+    }
+    .risk-spotlight {
+        border-radius: 22px;
+        padding: 1rem;
+        margin-bottom: 0.85rem;
+        border: 1px solid rgba(148,163,184,0.10);
+        background: linear-gradient(180deg, rgba(17,24,39,0.94), rgba(11,17,29,0.98));
+    }
+    .risk-spotlight.high {
+        box-shadow: inset 0 0 0 1px rgba(248,113,113,0.18);
+    }
+    .risk-spotlight.medium {
+        box-shadow: inset 0 0 0 1px rgba(251,191,36,0.14);
+    }
+    .summary-shell {
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 1rem;
+    }
+    .chat-shell {
+        border: 1px solid rgba(120, 140, 170, 0.12);
+        background: linear-gradient(180deg, rgba(15,22,36,0.94), rgba(11,17,29,0.96));
+        border-radius: 24px;
+        padding: 1rem 1.1rem;
+    }
+    @media (max-width: 900px) {
+        .hero-layout, .summary-shell, .mini-grid {
+            grid-template-columns: 1fr;
+        }
+        .hero-title {
+            font-size: 2.2rem;
+        }
     }
     </style>
     """,
@@ -245,17 +338,28 @@ def _apply_analysis_payload(payload):
 st.markdown(
     """
     <div class="hero-card">
-        <div class="hero-kicker">Source-grounded document intelligence</div>
-        <div class="hero-title">AI Terms &amp; Conditions Analyzer</div>
-        <p class="hero-subtitle">
-            Analyze PDFs, links, or photos of printed documents. Get the most important risks first, then ask follow-up questions with cited evidence.
-        </p>
-        <div class="hero-support">
-            <span class="hero-pill">PDFs</span>
-            <span class="hero-pill">Links</span>
-            <span class="hero-pill">Document Photos</span>
-            <span class="hero-pill">Risk Scoring</span>
-            <span class="hero-pill">Cited Answers</span>
+        <div class="hero-layout">
+            <div>
+                <div class="hero-kicker">Source-grounded document intelligence</div>
+                <div class="hero-title">Understand terms and conditions before you agree to them.</div>
+                <p class="hero-subtitle">
+                    Analyze PDFs, links, or photos of printed documents. Surface the real risks first, then ask follow-up questions with cited evidence.
+                </p>
+                <div class="hero-support">
+                    <span class="hero-pill">PDFs</span>
+                    <span class="hero-pill">Links</span>
+                    <span class="hero-pill">Printed documents</span>
+                    <span class="hero-pill">Risk scoring</span>
+                    <span class="hero-pill">Cited answers</span>
+                </div>
+            </div>
+            <div class="hero-side">
+                <div class="hero-side-title">What users care about</div>
+                <div class="hero-side-item"><span>Can this cost me more later?</span><span class="hero-side-soft">Fees, EMI, penalties</span></div>
+                <div class="hero-side-item"><span>Can the company change terms quietly?</span><span class="hero-side-soft">Rate changes, notice</span></div>
+                <div class="hero-side-item"><span>Can I ask questions in plain English?</span><span class="hero-side-soft">Grounded chat</span></div>
+                <div class="hero-side-item"><span>Can I use printed documents too?</span><span class="hero-side-soft">Photo input</span></div>
+            </div>
         </div>
     </div>
     """,
@@ -279,7 +383,7 @@ if "analysis_payload" not in st.session_state:
 # -------------------------------
 st.markdown(
     """
-    <div class="upload-shell">
+    <div class="input-stage">
         <div class="section-label">Analyze A Document</div>
         <div class="section-intro">Choose the input type that matches what the user actually has. All three options use the same analysis engine and risk scoring.</div>
         <div class="mini-grid">
@@ -411,7 +515,7 @@ if st.session_state.analysis_payload:
         st.markdown('<div class="section-label">Executive Summary</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-intro">The fast read: what this document is about and where the main risks sit.</div>', unsafe_allow_html=True)
         st.markdown(
-            f'<div class="panel-card"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;">{html.escape(summary_text)}</pre></div>',
+            f'<div class="summary-card"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;line-height:1.7;">{html.escape(summary_text)}</pre></div>',
             unsafe_allow_html=True,
         )
 
@@ -426,7 +530,7 @@ if st.session_state.analysis_payload:
             )
             st.markdown(
                 f"""
-                <div class="panel-card" style="margin-bottom:0.8rem;">
+                <div class="risk-spotlight {'high' if clause['risk']=='HIGH' else 'medium'}">
                     {badges}
                     <div style="margin-top:0.45rem;font-weight:600;">{html.escape(clause[clause_explanation_key])}</div>
                     <div class="muted" style="margin-top:0.45rem;">Page {clause['page_number']} | Confidence {clause['confidence']}</div>
@@ -465,6 +569,7 @@ if st.session_state.analysis_payload:
 # -------------------------------
 st.markdown('<div class="section-label" style="margin-top:1.4rem;">Chat With Document</div>', unsafe_allow_html=True)
 st.markdown('<div class="section-intro">Ask direct questions in your own words. The app answers with retrieved document evidence so the user can verify the result.</div>', unsafe_allow_html=True)
+st.markdown('<div class="chat-shell">', unsafe_allow_html=True)
 
 if not st.session_state.document_loaded:
     st.warning("⚠️ Please upload and analyze a document first.")
@@ -519,3 +624,5 @@ else:
 
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
+
+st.markdown('</div>', unsafe_allow_html=True)
