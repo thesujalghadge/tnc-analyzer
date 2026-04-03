@@ -93,23 +93,23 @@ def local_explain(reason):
     return result
 
 
-def local_child_explain(reason):
-    prompt = f"Explain this to a 10-year-old in one short sentence:\n{reason}"
+def local_simple_summary(chunks):
+    key_points = []
 
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+    for chunk in chunks[:3]:
+        chunk = chunk[:600]
+        prompt = f"Explain this in very simple English for a normal user:\n{chunk}"
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+        outputs = model.generate(
+            **inputs,
+            max_length=32,
+            num_beams=4
+        )
+        summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        if len(summary) > 8:
+            key_points.append(summary)
 
-    outputs = model.generate(
-        **inputs,
-        max_length=24,
-        num_beams=4
-    )
-
-    result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    if len(result) < 5:
-        return f"In simple words: {reason}"
-
-    return result
+    return "\n".join([f"• {s}" for s in key_points])
 
 
 # =========================================================
@@ -167,17 +167,18 @@ Rules:
     return None
 
 
-def gemini_child_explain(reason):
+def gemini_simple_explain(reason):
     try:
         prompt = f"""
-Explain this legal or financial risk to a 10-year-old.
+Explain this legal or financial risk in very simple English.
 
 Risk: {reason}
 
 Rules:
-- Use very simple words
+- Use plain everyday English
 - One short sentence
-- No legal jargon
+- Avoid legal jargon
+- Explain what it means for the user
 """
 
         response = gemini_model.generate_content(prompt)
@@ -186,22 +187,23 @@ Rules:
             return response.text.strip()
 
     except Exception as e:
-        print("❌ Gemini Child Explain Error:", e)
+        print("❌ Gemini Simple Explain Error:", e)
 
     return None
 
 
-def gemini_child_summary(chunks):
+def gemini_simple_summary(chunks):
     try:
         text = " ".join(chunks[:3])[:1500]
 
         prompt = f"""
-Explain this document to a 10-year-old.
+Explain this document in simple English for a normal user.
 
 Rules:
-- Use only 3 short bullet points
-- Very simple words
-- Focus on what the user should know
+- Use only short bullet points
+- Keep the wording simple and practical
+- Explain what the document is about and what may affect the user
+- Avoid technical or legal wording where possible
 
 Document:
 {text}
@@ -213,28 +215,9 @@ Document:
             return response.text.strip()
 
     except Exception as e:
-        print("❌ Gemini Child Summary Error:", e)
+        print("❌ Gemini Simple Summary Error:", e)
 
     return None
-
-
-def local_child_summary(chunks):
-    key_points = []
-
-    for chunk in chunks[:3]:
-        chunk = chunk[:500]
-        prompt = f"Explain this to a 10-year-old in one simple line:\n{chunk}"
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-        outputs = model.generate(
-            **inputs,
-            max_length=24,
-            num_beams=4
-        )
-        summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        if len(summary) > 8:
-            key_points.append(summary)
-
-    return "\n".join([f"• {s}" for s in key_points])
 
 
 # =========================================================
@@ -250,28 +233,19 @@ def generate_summary(chunks):
     return local_summary(chunks)
 
 
-def generate_child_summary(chunks):
+def generate_simple_summary(chunks):
     if USE_GEMINI:
-        result = gemini_child_summary(chunks)
+        result = gemini_simple_summary(chunks)
         if result:
             return result
 
-    return local_child_summary(chunks)
+    return local_simple_summary(chunks)
 
 
 def explain_simple(clause, reason=None, category=None):
     if USE_GEMINI:
-        result = gemini_explain(reason)
+        result = gemini_simple_explain(reason)
         if result:
             return result
 
     return local_explain(reason)
-
-
-def explain_child_friendly(clause, reason=None, category=None):
-    if USE_GEMINI:
-        result = gemini_child_explain(reason)
-        if result:
-            return result
-
-    return local_child_explain(reason)

@@ -216,16 +216,13 @@ if st.session_state.analysis_payload:
     with mode_col:
         st.session_state.reading_mode = st.radio(
             "Reading mode",
-            ["Standard", "Simple", "10-Year-Old"],
+            ["Standard", "Simple"],
             horizontal=True,
         )
 
     if st.session_state.reading_mode == "Standard":
         summary_text = payload["formatted_output"]
         clause_explanation_key = "reason"
-    elif st.session_state.reading_mode == "10-Year-Old":
-        summary_text = payload["child_friendly_summary"]
-        clause_explanation_key = "child_friendly_explanation"
     else:
         summary_text = payload["simple_summary"]
         clause_explanation_key = "simple_explanation"

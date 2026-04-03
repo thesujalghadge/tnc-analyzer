@@ -184,7 +184,9 @@ Clauses:
 
 Instructions:
 - Use only the given clauses
-- If the answer is supported, say so clearly and briefly
+- Answer in simple English for a normal user
+- Keep it short and clear
+- If the answer is supported, say so clearly
 - If support is weak, say that clearly
 - Return strict JSON only with this shape:
   {{"answer":"...","grounded":true}}
@@ -228,6 +230,7 @@ Instructions:
 - Answer in plain language for a normal user
 - Focus on whether the document has meaningful user risks
 - Mention the most important 1-2 risks only
+- Keep the wording simple and practical
 - Use only the given clauses
 - Return strict JSON only with this shape:
   {{"answer":"...","grounded":true}}

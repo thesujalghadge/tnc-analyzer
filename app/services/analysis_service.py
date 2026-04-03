@@ -3,7 +3,7 @@ from app.models.schemas import AnalyzeResponse, ClauseAnalysis, RiskOverview
 from app.services.analyzer import analyze_clauses
 from app.services.chunking import chunk_pages
 from app.services.embedding import get_embeddings
-from app.services.llm_service import explain_child_friendly, explain_simple, generate_child_summary, generate_summary
+from app.services.llm_service import explain_simple, generate_simple_summary, generate_summary
 from app.services.output_formatter import format_output
 from app.services.parser import extract_pages
 
@@ -25,11 +25,6 @@ def _build_clause_models(chunk_records, analysis):
                 reason=item["reason"],
                 highlighted_terms=item["highlighted_terms"],
                 simple_explanation=explain_simple(
-                    item["clause"],
-                    reason=item["reason"],
-                    category=item["category"],
-                ),
-                child_friendly_explanation=explain_child_friendly(
                     item["clause"],
                     reason=item["reason"],
                     category=item["category"],
@@ -68,14 +63,13 @@ def analyze_document(file_path: str):
 
     analysis = analyze_clauses(chunk_texts)
     summary = generate_summary(chunk_texts)
-    child_friendly_summary = generate_child_summary(chunk_texts)
+    simple_summary = generate_simple_summary(chunk_texts)
     formatted_output = format_output(summary, analysis)
 
     response = AnalyzeResponse(
         document_id="",
         summary=summary,
-        simple_summary=summary,
-        child_friendly_summary=child_friendly_summary,
+        simple_summary=simple_summary,
         risk_overview=_build_risk_overview(analysis),
         clauses=_build_clause_models(chunks, analysis),
         formatted_output=formatted_output,
