@@ -5,7 +5,7 @@ from app.services.chunking import chunk_pages
 from app.services.embedding import get_embeddings
 from app.services.llm_service import generate_summary
 from app.services.output_formatter import format_output
-from app.services.parser import extract_pages
+from app.services.parser import extract_pages, extract_pages_from_text, extract_pages_from_url
 
 
 def _build_clause_models(chunk_records, analysis):
@@ -45,6 +45,20 @@ def _build_risk_overview(analysis) -> RiskOverview:
 
 def analyze_document(file_path: str):
     pages = extract_pages(file_path)
+    return analyze_pages(pages)
+
+
+def analyze_url(url: str):
+    pages = extract_pages_from_url(url)
+    return analyze_pages(pages)
+
+
+def analyze_image_text(raw_text: str):
+    pages = extract_pages_from_text(raw_text)
+    return analyze_pages(pages)
+
+
+def analyze_pages(pages):
     chunks = chunk_pages(pages)
 
     if not chunks:

@@ -5,6 +5,8 @@ import requests
 import streamlit as st
 
 API_ANALYZE = "http://127.0.0.1:8000/analyze"
+API_ANALYZE_URL = "http://127.0.0.1:8000/analyze-url"
+API_ANALYZE_IMAGES = "http://127.0.0.1:8000/analyze-images"
 API_ASK = "http://127.0.0.1:8000/ask"
 
 st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
@@ -109,6 +111,11 @@ st.markdown(
         margin-top: -0.1rem;
         margin-bottom: 0.8rem;
     }
+    .input-mode-note {
+        color: #9ab0c8;
+        font-size: 0.88rem;
+        margin-top: 0.2rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -182,6 +189,12 @@ def _display_category(category: str):
     return mapping.get(category, category.replace("_", " ").title())
 
 
+def _apply_analysis_payload(payload):
+    st.session_state.document_loaded = True
+    st.session_state.document_id = payload["document_id"]
+    st.session_state.analysis_payload = payload
+
+
 st.markdown(
     """
     <div class="hero-card">
@@ -211,36 +224,85 @@ if "analysis_payload" not in st.session_state:
 # FILE UPLOAD
 # -------------------------------
 st.markdown('<div class="section-label">Upload Document</div>', unsafe_allow_html=True)
-st.markdown('<div class="section-intro">Start with one PDF. The app will extract clauses, score risks, and let you ask follow-up questions.</div>', unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
+st.markdown('<div class="section-intro">Choose the input type that matches what the user actually has: a PDF, a webpage/PDF link, or photos of a printed document.</div>', unsafe_allow_html=True)
 
-if uploaded_file is not None:
+input_tab_pdf, input_tab_link, input_tab_images = st.tabs(["PDF upload", "Link", "Document photos"])
 
-    st.info("Uploading and analyzing document...")
+with input_tab_pdf:
+    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
+    st.markdown('<div class="input-mode-note">Best for downloaded terms, policy PDFs, and bank documents.</div>', unsafe_allow_html=True)
 
-    files = {
-        "file": (uploaded_file.name, uploaded_file, "application/pdf")
-    }
+    if uploaded_file is not None:
+        st.info("Uploading and analyzing document...")
 
-    try:
-        response = requests.post(API_ANALYZE, files=files)
+        files = {
+            "file": (uploaded_file.name, uploaded_file, "application/pdf")
+        }
 
-        if response.status_code == 200:
-            payload = response.json()
-            result = payload["formatted_output"]
+        try:
+            response = requests.post(API_ANALYZE, files=files)
 
-            st.success("Analysis Complete ✅")
+            if response.status_code == 200:
+                payload = response.json()
+                st.success("Analysis Complete ✅")
+                _apply_analysis_payload(payload)
+            else:
+                detail = response.json().get("detail", f"API Error: {response.status_code}")
+                st.error(detail)
 
-            # ✅ mark as ready for Q&A
-            st.session_state.document_loaded = True
-            st.session_state.document_id = payload["document_id"]
-            st.session_state.analysis_payload = payload
+        except Exception as e:
+            st.error(f"Connection Error: {e}")
 
+with input_tab_link:
+    st.markdown('<div class="input-mode-note">Paste a direct PDF link or a normal webpage link. The app checks the link first before analyzing it.</div>', unsafe_allow_html=True)
+    doc_url = st.text_input("Paste document link", placeholder="https://example.com/terms.pdf")
+
+    if st.button("Analyze link"):
+        if not doc_url.strip():
+            st.warning("Please paste a valid link.")
         else:
-            st.error(f"API Error: {response.status_code}")
+            with st.spinner("Checking link and analyzing document..."):
+                try:
+                    response = requests.post(API_ANALYZE_URL, json={"url": doc_url.strip()})
+                    if response.status_code == 200:
+                        payload = response.json()
+                        st.success("Link analysis complete ✅")
+                        _apply_analysis_payload(payload)
+                    else:
+                        detail = response.json().get("detail", f"API Error: {response.status_code}")
+                        st.error(detail)
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
 
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
+with input_tab_images:
+    st.markdown('<div class="input-mode-note">Upload one or more photos of a printed document. The app will extract text from the images before analyzing it.</div>', unsafe_allow_html=True)
+    document_images = st.file_uploader(
+        "Upload document photos",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
+
+    if st.button("Analyze photos"):
+        if not document_images:
+            st.warning("Please upload at least one document photo.")
+        else:
+            with st.spinner("Reading document photos and analyzing text..."):
+                try:
+                    files = [
+                        ("files", (image.name, image, image.type or "image/jpeg"))
+                        for image in document_images
+                    ]
+                    response = requests.post(API_ANALYZE_IMAGES, files=files)
+                    if response.status_code == 200:
+                        payload = response.json()
+                        st.success("Photo analysis complete ✅")
+                        _apply_analysis_payload(payload)
+                    else:
+                        detail = response.json().get("detail", f"API Error: {response.status_code}")
+                        st.error(detail)
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
 
 
 if st.session_state.analysis_payload:

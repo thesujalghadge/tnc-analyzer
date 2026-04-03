@@ -37,6 +37,10 @@ class AnalyzeResponse(BaseModel):
     formatted_output: str
 
 
+class AnalyzeUrlRequest(BaseModel):
+    url: str
+
+
 class AskRequest(BaseModel):
     question: str
     document_id: str

@@ -1,6 +1,7 @@
 # -------------------------------
 # IMPORTS
 # -------------------------------
+import base64
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import os
 from dotenv import load_dotenv
@@ -170,3 +171,36 @@ def explain_simple(clause, reason=None, category=None):
             return result
 
     return local_explain(reason)
+
+
+def extract_text_from_images(image_payloads):
+    if not USE_GEMINI:
+        raise ValueError("Image analysis currently requires Gemini to extract text from document photos.")
+
+    try:
+        prompt = """
+Extract the readable document text from these images.
+
+Rules:
+- Preserve the order of the pages/images
+- Focus on the document text only
+- Return plain text only
+- Separate each page with a heading like [Page 1]
+"""
+
+        parts = [prompt]
+        for image in image_payloads:
+            parts.append({
+                "mime_type": image["mime_type"],
+                "data": base64.b64decode(image["data"]),
+            })
+
+        response = gemini_model.generate_content(parts)
+
+        if hasattr(response, "text") and response.text:
+            return response.text.strip()
+
+    except Exception as e:
+        print("❌ Gemini Image OCR Error:", e)
+
+    raise ValueError("Could not extract text from the uploaded images.")
