@@ -6,17 +6,21 @@ from urllib.parse import quote
 
 import requests
 import streamlit as st
+from dotenv import load_dotenv
 
-API_ANALYZE = "http://127.0.0.1:8000/analyze"
-API_ANALYZE_URL = "http://127.0.0.1:8000/analyze-url"
-API_ANALYZE_IMAGES = "http://127.0.0.1:8000/analyze-images"
-API_ASK = "http://127.0.0.1:8000/ask"
-API_REPORT = "http://127.0.0.1:8000/report"
-API_AUTH_LOGOUT = "http://127.0.0.1:8000/auth/logout"
-API_AUTH_GOOGLE_START = "http://127.0.0.1:8000/auth/google/start"
-API_AUTH_ME = "http://127.0.0.1:8000/auth/me"
-API_HISTORY = "http://127.0.0.1:8000/history"
-API_LOAD_ANALYSIS = "http://127.0.0.1:8000/analysis"
+load_dotenv()
+
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", os.getenv("API_BASE_URL", "http://127.0.0.1:8000")).rstrip("/")
+API_ANALYZE = f"{BACKEND_BASE_URL}/analyze"
+API_ANALYZE_URL = f"{BACKEND_BASE_URL}/analyze-url"
+API_ANALYZE_IMAGES = f"{BACKEND_BASE_URL}/analyze-images"
+API_ASK = f"{BACKEND_BASE_URL}/ask"
+API_REPORT = f"{BACKEND_BASE_URL}/report"
+API_AUTH_LOGOUT = f"{BACKEND_BASE_URL}/auth/logout"
+API_AUTH_GOOGLE_START = f"{BACKEND_BASE_URL}/auth/google/start"
+API_AUTH_ME = f"{BACKEND_BASE_URL}/auth/me"
+API_HISTORY = f"{BACKEND_BASE_URL}/history"
+API_LOAD_ANALYSIS = f"{BACKEND_BASE_URL}/analysis"
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:8501")
 
 st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")

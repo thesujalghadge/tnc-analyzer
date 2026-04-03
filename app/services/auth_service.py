@@ -5,10 +5,13 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
 from app.db.database import get_connection
 
 
 SESSION_DURATION_DAYS = 30
+load_dotenv()
 
 
 def _utc_now():

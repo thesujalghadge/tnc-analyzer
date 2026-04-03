@@ -17,9 +17,6 @@ from app.models.schemas import (
     AnalyzeUrlRequest,
     AskRequest,
     AskResponse,
-    AuthLoginRequest,
-    AuthRegisterRequest,
-    AuthResponse,
     DocumentMetadata,
     HistoryItem,
     UserResponse,
@@ -30,14 +27,12 @@ from app.services.analysis_service import (
     analyze_url as run_url_analysis,
 )
 from app.services.auth_service import (
-    authenticate_user,
     create_session,
     create_google_state,
     get_user_from_token,
     google_oauth_ready,
     google_oauth_settings,
     pop_google_state,
-    register_user,
     revoke_session,
     upsert_google_user,
 )
@@ -194,35 +189,6 @@ def _append_query_params(url: str, **params):
 # =========================================================
 # 🔹 AUTH ENDPOINTS
 # =========================================================
-
-@app.post("/auth/register", response_model=AuthResponse)
-async def register(request: AuthRegisterRequest):
-    if len(request.password.strip()) < 8:
-        raise HTTPException(status_code=400, detail="Password should be at least 8 characters long.")
-
-    try:
-        user = register_user(request.name, request.email, request.password)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return AuthResponse(
-        access_token=create_session(user["id"]),
-        user=UserResponse(**user),
-    )
-
-
-@app.post("/auth/login", response_model=AuthResponse)
-async def login(request: AuthLoginRequest):
-    try:
-        user = authenticate_user(request.email, request.password)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    return AuthResponse(
-        access_token=create_session(user["id"]),
-        user=UserResponse(**user),
-    )
-
 
 @app.get("/auth/google/start")
 async def auth_google_start(next_url: str | None = Query(default=None)):

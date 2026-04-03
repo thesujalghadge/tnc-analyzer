@@ -72,22 +72,6 @@ class UserResponse(BaseModel):
     created_at: str
 
 
-class AuthRegisterRequest(BaseModel):
-    name: str | None = None
-    email: str
-    password: str
-
-
-class AuthLoginRequest(BaseModel):
-    email: str
-    password: str
-
-
-class AuthResponse(BaseModel):
-    access_token: str
-    user: UserResponse
-
-
 class HistoryItem(BaseModel):
     document_id: str
     original_name: str | None = None
