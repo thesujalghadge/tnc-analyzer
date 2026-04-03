@@ -18,17 +18,18 @@ st.markdown(
 
     .stApp {
         background:
-            radial-gradient(circle at 10% 0%, rgba(34, 197, 94, 0.08), transparent 20%),
-            radial-gradient(circle at 90% 0%, rgba(14, 165, 233, 0.10), transparent 24%),
-            radial-gradient(circle at 50% 100%, rgba(251, 191, 36, 0.06), transparent 24%),
-            linear-gradient(180deg, #06101d 0%, #0a1322 48%, #0c1628 100%);
+            radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.06), transparent 20%),
+            radial-gradient(circle at 88% 8%, rgba(45, 212, 191, 0.05), transparent 18%),
+            linear-gradient(180deg, #071019 0%, #0c1520 45%, #101a27 100%);
         color: #edf3fb;
         font-family: 'Manrope', sans-serif;
     }
     .block-container {
-        max-width: 1360px;
-        padding-top: 1.2rem;
-        padding-bottom: 3rem;
+        max-width: 100%;
+        padding-top: 1rem;
+        padding-bottom: 3.2rem;
+        padding-left: 2.2rem;
+        padding-right: 2.2rem;
     }
     [data-testid="stTabs"] button {
         border-radius: 999px !important;
@@ -65,54 +66,53 @@ st.markdown(
         font-family: 'Manrope', sans-serif !important;
     }
     .hero-card {
-        border: 1px solid rgba(125, 149, 181, 0.18);
+        border: 1px solid rgba(125, 149, 181, 0.12);
         background:
-            radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 28%),
-            radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.10), transparent 22%),
-            linear-gradient(180deg, rgba(14,21,36,0.98), rgba(10,16,29,0.98));
-        border-radius: 30px;
-        padding: 1.7rem 1.7rem 1.5rem;
-        box-shadow: 0 24px 64px rgba(0,0,0,0.28);
-        margin-bottom: 1.25rem;
+            radial-gradient(circle at top right, rgba(56, 189, 248, 0.10), transparent 24%),
+            linear-gradient(180deg, rgba(16,22,32,0.96), rgba(12,18,28,0.98));
+        border-radius: 28px;
+        padding: 1.9rem 2rem 1.75rem;
+        box-shadow: 0 18px 44px rgba(0,0,0,0.20);
+        margin-bottom: 1.4rem;
     }
     .panel-card, .metric-card, .citation-card, .clause-card, .upload-card {
-        border: 1px solid rgba(120, 140, 170, 0.14);
-        background: linear-gradient(180deg, rgba(18,24,38,0.92), rgba(11,17,29,0.96));
-        border-radius: 20px;
-        padding: 1rem 1.15rem;
-        box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+        border: 1px solid rgba(120, 140, 170, 0.10);
+        background: linear-gradient(180deg, rgba(17,23,35,0.90), rgba(12,18,28,0.95));
+        border-radius: 22px;
+        padding: 1.05rem 1.15rem;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.14);
     }
     .summary-card {
-        border: 1px solid rgba(120, 140, 170, 0.14);
+        border: 1px solid rgba(120, 140, 170, 0.10);
         background:
-            linear-gradient(180deg, rgba(20,27,42,0.95), rgba(11,17,29,0.96));
+            linear-gradient(180deg, rgba(18,25,39,0.94), rgba(12,18,28,0.96));
         border-radius: 24px;
-        padding: 1.2rem 1.2rem 1.15rem;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.20);
+        padding: 1.3rem 1.3rem 1.2rem;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.14);
     }
     .input-stage {
-        border: 1px solid rgba(120, 140, 170, 0.15);
+        border: 1px solid rgba(120, 140, 170, 0.10);
         background:
-            linear-gradient(180deg, rgba(15,22,36,0.96), rgba(10,17,30,0.96));
+            linear-gradient(180deg, rgba(15,22,34,0.94), rgba(12,18,28,0.96));
         border-radius: 26px;
-        padding: 1.25rem;
-        margin-bottom: 1.2rem;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+        padding: 1.35rem;
+        margin-bottom: 1.35rem;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.14);
     }
     .hero-title {
         font-size: 2.7rem;
         font-weight: 800;
-        margin-bottom: 0.45rem;
+        margin-bottom: 0.55rem;
         letter-spacing: -0.03em;
-        max-width: 700px;
+        max-width: 760px;
         line-height: 1.05;
     }
     .hero-subtitle {
-        color: #b6c6da;
-        margin: 0 0 1rem;
-        max-width: 680px;
-        line-height: 1.65;
-        font-size: 1.02rem;
+        color: #b7c4d6;
+        margin: 0 0 1.2rem;
+        max-width: 720px;
+        line-height: 1.72;
+        font-size: 1rem;
     }
     .hero-kicker {
         display: inline-block;
@@ -127,18 +127,18 @@ st.markdown(
     }
     .hero-support {
         display: inline-flex;
-        gap: 0.55rem;
+        gap: 0.6rem;
         flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 0.2rem;
+        justify-content: flex-start;
+        margin-top: 0.3rem;
     }
     .hero-pill {
         border-radius: 999px;
-        padding: 0.32rem 0.72rem;
-        font-size: 0.8rem;
-        color: #c8d9ee;
-        background: rgba(148,163,184,0.08);
-        border: 1px solid rgba(148,163,184,0.14);
+        padding: 0.34rem 0.78rem;
+        font-size: 0.79rem;
+        color: #d0deef;
+        background: rgba(148,163,184,0.06);
+        border: 1px solid rgba(148,163,184,0.10);
     }
     .metric-value {
         font-size: 2rem;
@@ -153,9 +153,9 @@ st.markdown(
         letter-spacing: 0.06em;
     }
     .section-label {
-        font-size: 1.2rem;
+        font-size: 1.18rem;
         font-weight: 800;
-        margin-bottom: 0.45rem;
+        margin-bottom: 0.35rem;
         letter-spacing: -0.02em;
     }
     .badge {
@@ -177,13 +177,13 @@ st.markdown(
         padding: 0.05rem 0.18rem;
         border-radius: 0.2rem;
     }
-    .muted { color: #90a0b8; font-size: 0.88rem; }
+    .muted { color: #93a3b8; font-size: 0.88rem; }
     .answer-box {
-        border: 1px solid rgba(96, 165, 250, 0.24);
+        border: 1px solid rgba(96, 165, 250, 0.14);
         background:
-            radial-gradient(circle at top right, rgba(96, 165, 250, 0.10), transparent 26%),
-            linear-gradient(180deg, rgba(16,23,38,0.98), rgba(10,16,28,0.98));
-        padding: 1rem 1.1rem;
+            radial-gradient(circle at top right, rgba(96, 165, 250, 0.07), transparent 26%),
+            linear-gradient(180deg, rgba(16,23,35,0.96), rgba(11,17,28,0.98));
+        padding: 1.1rem 1.2rem;
         margin-top: 0.35rem;
         border-radius: 22px;
     }
@@ -202,15 +202,15 @@ st.markdown(
     .mini-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.9rem;
-        margin-top: 0.85rem;
-        margin-bottom: 0.4rem;
+        gap: 1rem;
+        margin-top: 1rem;
+        margin-bottom: 0.3rem;
     }
     .mini-card {
         border-radius: 20px;
-        padding: 0.9rem;
-        background: rgba(148,163,184,0.04);
-        border: 1px solid rgba(148,163,184,0.08);
+        padding: 1rem;
+        background: rgba(148,163,184,0.03);
+        border: 1px solid rgba(148,163,184,0.06);
     }
     .mini-title {
         font-weight: 700;
@@ -225,14 +225,14 @@ st.markdown(
     .hero-layout {
         display: grid;
         grid-template-columns: 1.15fr 0.85fr;
-        gap: 1.2rem;
+        gap: 1.6rem;
         align-items: stretch;
     }
     .hero-side {
         border-radius: 24px;
-        border: 1px solid rgba(148,163,184,0.10);
-        background: rgba(148,163,184,0.04);
-        padding: 1rem;
+        border: 1px solid rgba(148,163,184,0.08);
+        background: rgba(148,163,184,0.03);
+        padding: 1.05rem 1.05rem 0.95rem;
     }
     .hero-side-title {
         font-size: 0.85rem;
@@ -257,16 +257,16 @@ st.markdown(
     }
     .risk-spotlight {
         border-radius: 22px;
-        padding: 1rem;
-        margin-bottom: 0.85rem;
-        border: 1px solid rgba(148,163,184,0.10);
-        background: linear-gradient(180deg, rgba(17,24,39,0.94), rgba(11,17,29,0.98));
+        padding: 1.05rem;
+        margin-bottom: 0.9rem;
+        border: 1px solid rgba(148,163,184,0.08);
+        background: linear-gradient(180deg, rgba(17,24,36,0.92), rgba(12,18,28,0.96));
     }
     .risk-spotlight.high {
-        box-shadow: inset 0 0 0 1px rgba(248,113,113,0.18);
+        box-shadow: inset 0 0 0 1px rgba(248,113,113,0.14);
     }
     .risk-spotlight.medium {
-        box-shadow: inset 0 0 0 1px rgba(251,191,36,0.14);
+        box-shadow: inset 0 0 0 1px rgba(251,191,36,0.10);
     }
     .summary-shell {
         display: grid;
@@ -274,30 +274,28 @@ st.markdown(
         gap: 1rem;
     }
     .chat-shell {
-        border: 1px solid rgba(120, 140, 170, 0.12);
-        background: linear-gradient(180deg, rgba(15,22,36,0.94), rgba(11,17,29,0.96));
+        border: 1px solid rgba(120, 140, 170, 0.10);
+        background: linear-gradient(180deg, rgba(15,22,34,0.94), rgba(11,17,28,0.96));
         border-radius: 24px;
-        padding: 1rem 1.1rem;
+        padding: 1.15rem 1.2rem;
     }
     .detail-toggle-shell {
-        border: 1px solid rgba(120, 140, 170, 0.12);
-        background: linear-gradient(180deg, rgba(14,21,34,0.9), rgba(10,16,28,0.96));
+        border: 1px solid rgba(120, 140, 170, 0.10);
+        background: linear-gradient(180deg, rgba(14,21,34,0.88), rgba(10,16,28,0.94));
         border-radius: 22px;
-        padding: 1rem 1.1rem 0.9rem;
-        margin-top: 1.15rem;
-    }
-    .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.95rem;
-        margin-top: 0.85rem;
+        padding: 1rem 1.1rem;
+        margin-top: 1.3rem;
     }
     @media (max-width: 900px) {
-        .hero-layout, .summary-shell, .mini-grid, .detail-grid {
+        .hero-layout, .summary-shell, .mini-grid {
             grid-template-columns: 1fr;
         }
         .hero-title {
             font-size: 2.2rem;
+        }
+        .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
     }
     </style>
@@ -554,7 +552,7 @@ if st.session_state.analysis_payload:
                 unsafe_allow_html=True,
             )
 
-    left_col, right_col = st.columns([1.15, 0.85], gap="large")
+    left_col, right_col = st.columns([1.1, 0.9], gap="large")
 
     with left_col:
         st.markdown('<div class="section-label">Executive Summary</div>', unsafe_allow_html=True)
@@ -595,7 +593,8 @@ if st.session_state.analysis_payload:
     )
     show_clause_review = st.toggle("Show detailed clause risk review", value=False)
     if show_clause_review:
-        clause_columns = st.columns(2, gap="large")
+        st.markdown('<div class="section-intro">Detailed clause review is optional and meant for users who want to inspect the evidence behind the scoring.</div>', unsafe_allow_html=True)
+        clause_columns = st.columns([1, 1], gap="large")
         for index, clause in enumerate(deep_clauses):
             badges = (
                 _risk_badge(clause["risk"])
@@ -603,7 +602,7 @@ if st.session_state.analysis_payload:
                 + _neutral_badge(f"Confidence {clause['confidence']}")
                 + _neutral_badge(_display_category(clause["category"]))
             )
-            highlighted = _highlight_clause(clause["clause"][:420], clause.get("highlighted_terms", []))
+            highlighted = _highlight_clause(clause["clause"][:360], clause.get("highlighted_terms", []))
             terms = ", ".join(clause.get("highlighted_terms", [])[:5]) or "No explicit trigger terms"
             with clause_columns[index % 2]:
                 st.markdown(
@@ -611,9 +610,9 @@ if st.session_state.analysis_payload:
                     <div class="clause-card" style="margin-bottom:0.95rem;">
                         {badges}
                         <div class="muted" style="margin-top:0.4rem;">Page {clause['page_number']} | Category confidence {clause['category_confidence']}</div>
-                        <div style="margin-top:0.85rem; line-height:1.65;">{highlighted}</div>
-                        <div class="muted" style="margin-top:0.8rem;">Why flagged: {html.escape(clause[clause_explanation_key])}</div>
-                        <div class="muted" style="margin-top:0.25rem;">Highlighted phrases: {html.escape(terms)}</div>
+                        <div style="margin-top:0.75rem; line-height:1.72;">{highlighted}</div>
+                        <div class="muted" style="margin-top:0.9rem;">Why flagged: {html.escape(clause[clause_explanation_key])}</div>
+                        <div class="muted" style="margin-top:0.3rem;">Key phrases: {html.escape(terms)}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -664,19 +663,20 @@ else:
                         )
 
                         st.markdown('<div class="section-label" style="margin-top:0.9rem;">Citations</div>', unsafe_allow_html=True)
-
-                        for ev in result["citations"]:
-                            st.markdown(
-                                f"""
-                                <div class="citation-card" style="margin-bottom:0.75rem;">
-                                    {_neutral_badge(f"Page {ev['page_number']}")}
-                                    {_neutral_badge(f"Chunk {ev['chunk_id'] + 1}")}
-                                    {_neutral_badge(f"Relevance {ev['relevance_score']:.2f}")}
-                                    <div style="margin-top:0.7rem; line-height:1.65;">{html.escape(ev['text'][:320])}</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                        citation_columns = st.columns(2, gap="large")
+                        for index, ev in enumerate(result["citations"]):
+                            with citation_columns[index % 2]:
+                                st.markdown(
+                                    f"""
+                                    <div class="citation-card" style="margin-bottom:0.75rem;">
+                                        {_neutral_badge(f"Page {ev['page_number']}")}
+                                        {_neutral_badge(f"Chunk {ev['chunk_id'] + 1}")}
+                                        {_neutral_badge(f"Relevance {ev['relevance_score']:.2f}")}
+                                        <div style="margin-top:0.72rem; line-height:1.68;">{html.escape(ev['text'][:300])}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
 
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
