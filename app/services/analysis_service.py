@@ -68,4 +68,4 @@ def analyze_document(file_path: str):
         formatted_output=formatted_output,
     )
 
-    return response, vector_store, chunks
+    return response, vector_store, chunks, analysis

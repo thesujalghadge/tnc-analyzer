@@ -26,11 +26,11 @@ async def analyze_document(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        response, vector_store, chunks = run_document_analysis(file_path)
+        response, vector_store, chunks, analysis = run_document_analysis(file_path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    session = document_store.create(chunks=chunks, vector_index=vector_store.index)
+    session = document_store.create(chunks=chunks, clauses=analysis, vector_index=vector_store.index)
     response.document_id = session.document_id
     return response
 
@@ -50,4 +50,5 @@ async def ask_question(request: AskRequest):
         request.question,
         session.vector_index,
         session.chunks,
+        session.clauses,
     )
