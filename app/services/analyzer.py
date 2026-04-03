@@ -7,8 +7,12 @@ from app.services.embedding import get_embeddings
 
 CATEGORY_RULES = {
     "payment": {
-        "keywords": ["payment", "emi", "interest", "repayment", "fee", "charge", "billing", "invoice", "installment"],
-        "description": "Payments, fees, billing, subscription charges, interest rates, repayment obligations",
+        "keywords": ["payment", "emi", "interest", "repayment", "billing", "invoice", "installment", "prepayment"],
+        "description": "Loan payments, EMIs, interest rates, repayment schedule, installments, billing obligations",
+    },
+    "fees": {
+        "keywords": ["processing fee", "fee", "charges", "service charge", "pre-closure charges", "other fee", "valuation fee"],
+        "description": "Processing fees, service charges, pre-closure charges, extra costs and fee schedules",
     },
     "liability": {
         "keywords": ["liable", "liability", "responsible", "indemnify", "damages", "obligation"],
@@ -19,11 +23,11 @@ CATEGORY_RULES = {
         "description": "Account suspension, termination, cancellation, service shutdown",
     },
     "privacy": {
-        "keywords": ["privacy", "personal data", "personal information", "share data", "collect data", "disclose", "cookies"],
+        "keywords": ["privacy", "personal data", "personal information", "share data", "collect data", "disclose personal", "cookies"],
         "description": "Privacy, personal data collection, sharing, disclosure, tracking",
     },
     "penalty": {
-        "keywords": ["penalty", "fine", "late fee", "default", "penal", "extra charge"],
+        "keywords": ["penalty", "fine", "late fee", "default", "penal", "penal interest"],
         "description": "Penalties, late fees, fines, default charges, punitive costs",
     },
     "refund": {
@@ -63,7 +67,7 @@ RISK_SIGNALS = {
     },
     "financial_penalty": {
         "weight": 2.5,
-        "keywords": ["penalty", "late fee", "fine", "extra charge", "processing fee", "charges"],
+        "keywords": ["penalty", "late fee", "fine", "extra charge", "processing fee", "charges", "prepayment penalty"],
         "reason": "The clause can increase what the user has to pay.",
     },
     "broad_liability": {
@@ -78,7 +82,7 @@ RISK_SIGNALS = {
     },
     "data_sharing": {
         "weight": 2.0,
-        "keywords": ["share", "disclose", "third party", "collect", "personal data"],
+        "keywords": ["share data", "disclose personal", "third party", "collect personal data", "personal data"],
         "reason": "The clause allows collection or sharing of user data.",
     },
     "forced_dispute_process": {
@@ -112,6 +116,22 @@ def _phrase_present(text: str, phrase: str):
 
 def _matched_terms(text: str, terms):
     return [term for term in terms if _phrase_present(text, term)]
+
+
+def _normalize_tokens(text: str):
+    normalized = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+    return [token for token in normalized.split() if len(token) > 2]
+
+
+def _token_overlap_ratio(left: str, right: str):
+    left_tokens = set(_normalize_tokens(left))
+    right_tokens = set(_normalize_tokens(right))
+
+    if not left_tokens or not right_tokens:
+        return 0.0
+
+    overlap = len(left_tokens & right_tokens)
+    return overlap / min(len(left_tokens), len(right_tokens))
 
 
 def _cosine_similarity(vector_a, vector_b):
@@ -180,6 +200,7 @@ def score_risk(clause: str, category: str):
             highlighted_terms.extend(matched_keywords)
 
     category_bias = {
+        "fees": 0.9,
         "liability": 1.2,
         "penalty": 1.2,
         "termination": 1.0,
@@ -209,6 +230,8 @@ def score_risk(clause: str, category: str):
         reason = "The clause could not be classified confidently, so risk is estimated conservatively."
     elif category == "payment":
         reason = "This clause affects pricing, repayment, or fee-related terms for the user."
+    elif category == "fees":
+        reason = "This clause lists extra fees or charges the user may have to pay."
     else:
         reason = f"This clause is mainly about {category} terms and may affect the user."
 
@@ -220,13 +243,22 @@ def score_risk(clause: str, category: str):
 
 def analyze_clauses(chunks):
     results = []
+    accepted_clauses = []
 
     for chunk in chunks:
         if not chunk.strip():
             continue
 
+        if any(_token_overlap_ratio(chunk, seen_clause) >= 0.82 for seen_clause in accepted_clauses):
+            continue
+
+        accepted_clauses.append(chunk)
+
         category, category_confidence = classify_clause(chunk)
         risk_level, risk_score, risk_confidence, reason, highlighted_terms = score_risk(chunk, category)
+
+        if category_confidence < 0.45 and category != "other":
+            reason = f"Possible {category} risk. {reason}"
 
         results.append({
             "clause": chunk,

@@ -102,23 +102,48 @@ def _highlight_clause(text: str, terms):
 
 
 def _dedupe_clauses(clauses, limit=6):
+    def normalize_tokens(text: str):
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+        return {token for token in cleaned.split() if len(token) > 2}
+
+    def overlap_ratio(left: str, right: str):
+        left_tokens = normalize_tokens(left)
+        right_tokens = normalize_tokens(right)
+        if not left_tokens or not right_tokens:
+            return 0.0
+        return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
+
     selected = []
-    seen = set()
 
     for clause in sorted(clauses, key=lambda item: (item["risk_score"], item["confidence"]), reverse=True):
-        fingerprint = (
-            clause["category"],
-            clause["reason"],
-            clause["clause"][:110].lower(),
-        )
-        if fingerprint in seen:
+        if any(
+            overlap_ratio(clause["clause"], existing["clause"]) >= 0.82
+            and clause["category"] == existing["category"]
+            for existing in selected
+        ):
             continue
-        seen.add(fingerprint)
         selected.append(clause)
         if len(selected) >= limit:
             break
 
     return selected
+
+
+def _display_category(category: str):
+    mapping = {
+        "fees": "Fees & Charges",
+        "payment": "Payment Terms",
+        "privacy": "Privacy",
+        "termination": "Termination",
+        "liability": "Liability",
+        "penalty": "Penalty",
+        "refund": "Refunds",
+        "renewal": "Renewal",
+        "dispute": "Disputes",
+        "general": "General",
+        "other": "Other",
+    }
+    return mapping.get(category, category.replace("_", " ").title())
 
 
 st.markdown(
@@ -218,7 +243,7 @@ if st.session_state.analysis_payload:
             badges = (
                 _risk_badge(clause["risk"])
                 + _neutral_badge(f"Score {clause['risk_score']}/10")
-                + _neutral_badge(f"{clause['category'].title()}")
+                + _neutral_badge(_display_category(clause["category"]))
             )
             st.markdown(
                 f"""
@@ -237,7 +262,7 @@ if st.session_state.analysis_payload:
             _risk_badge(clause["risk"])
             + _neutral_badge(f"Score {clause['risk_score']}/10")
             + _neutral_badge(f"Confidence {clause['confidence']}")
-            + _neutral_badge(clause["category"].title())
+            + _neutral_badge(_display_category(clause["category"]))
         )
         highlighted = _highlight_clause(clause["clause"][:420], clause.get("highlighted_terms", []))
         terms = ", ".join(clause.get("highlighted_terms", [])[:5]) or "No explicit trigger terms"
