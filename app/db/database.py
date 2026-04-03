@@ -25,6 +25,13 @@ def init_db():
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
                 user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
@@ -86,6 +93,9 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_documents_user_created_at
             ON documents(user_id, created_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
+            ON auth_sessions(user_id, expires_at DESC);
 
             CREATE INDEX IF NOT EXISTS idx_chunks_document
             ON document_chunks(document_id, chunk_id);

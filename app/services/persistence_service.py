@@ -240,5 +240,83 @@ def fetch_document_bundle(document_id: str):
     }
 
 
+def list_user_history(user_id: str, limit: int = 12):
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT documents.id AS document_id,
+                   documents.original_name,
+                   documents.source_type,
+                   documents.created_at,
+                   documents.page_count,
+                   analyses.summary,
+                   analyses.risk_overview_json
+            FROM documents
+            JOIN analyses ON analyses.document_id = documents.id
+            WHERE documents.user_id = ?
+            ORDER BY documents.created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+
+    return [
+        {
+            "document_id": row["document_id"],
+            "original_name": row["original_name"],
+            "source_type": row["source_type"],
+            "created_at": row["created_at"],
+            "page_count": row["page_count"],
+            "summary": row["summary"],
+            "risk_overview": json.loads(row["risk_overview_json"]),
+        }
+        for row in rows
+    ]
+
+
+def build_analysis_payload(document_id: str, *, user_id: str | None = None):
+    bundle = fetch_document_bundle(document_id)
+    if bundle is None or bundle.get("analysis") is None:
+        return None
+
+    document = bundle["document"]
+    if user_id and document.get("user_id") and document["user_id"] != user_id:
+        return None
+
+    analysis = bundle["analysis"]
+
+    return {
+        "document_id": document["id"],
+        "summary": analysis["summary"],
+        "risk_overview": json.loads(analysis["risk_overview_json"]),
+        "clauses": [
+            {
+                "chunk_id": clause["chunk_id"],
+                "page_number": clause["page_number"],
+                "clause": clause["clause_text"],
+                "category": clause["category"],
+                "category_confidence": clause["category_confidence"],
+                "risk": clause["risk"],
+                "risk_score": clause["risk_score"],
+                "confidence": clause["confidence"],
+                "reason": clause["reason"],
+                "highlighted_terms": clause["highlighted_terms"],
+            }
+            for clause in bundle["clauses"]
+        ],
+        "formatted_output": analysis["formatted_output"],
+        "metadata": {
+            "source_type": document["source_type"],
+            "original_name": document["original_name"],
+            "source_url": document["source_url"],
+            "file_size": document["file_size"],
+            "page_count": document["page_count"],
+            "mime_type": document["mime_type"],
+            "checksum": document["checksum"],
+            "created_at": document["created_at"],
+        },
+    }
+
+
 def ensure_storage_path(path: str):
     Path(path).mkdir(parents=True, exist_ok=True)

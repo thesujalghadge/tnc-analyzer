@@ -10,6 +10,11 @@ API_ANALYZE_URL = "http://127.0.0.1:8000/analyze-url"
 API_ANALYZE_IMAGES = "http://127.0.0.1:8000/analyze-images"
 API_ASK = "http://127.0.0.1:8000/ask"
 API_REPORT = "http://127.0.0.1:8000/report"
+API_AUTH_REGISTER = "http://127.0.0.1:8000/auth/register"
+API_AUTH_LOGIN = "http://127.0.0.1:8000/auth/login"
+API_AUTH_LOGOUT = "http://127.0.0.1:8000/auth/logout"
+API_HISTORY = "http://127.0.0.1:8000/history"
+API_LOAD_ANALYSIS = "http://127.0.0.1:8000/analysis"
 
 st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
 
@@ -583,9 +588,15 @@ def _html_block(markup: str):
     return dedent(markup).strip()
 
 
+def _auth_headers():
+    token = st.session_state.get("auth_token")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 @st.cache_data(show_spinner=False)
-def _fetch_report_bytes(document_id: str):
-    response = requests.get(f"{API_REPORT}/{document_id}", timeout=30)
+def _fetch_report_bytes(document_id: str, token: str | None):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    response = requests.get(f"{API_REPORT}/{document_id}", headers=headers, timeout=30)
     response.raise_for_status()
     return response.content
 
@@ -596,6 +607,32 @@ def _report_filename(payload: dict):
     stem = re.sub(r"\.[A-Za-z0-9]+$", "", original_name)
     safe_stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_") or "tnc_analysis"
     return f"{safe_stem}_report.pdf"
+
+
+@st.cache_data(show_spinner=False)
+def _fetch_history(token: str):
+    response = requests.get(API_HISTORY, headers={"Authorization": f"Bearer {token}"}, timeout=20)
+    response.raise_for_status()
+    return response.json()
+
+
+def _clear_auth_state():
+    st.session_state.auth_token = None
+    st.session_state.current_user = None
+    _fetch_history.clear()
+    _fetch_report_bytes.clear()
+
+
+def _load_history_document(document_id: str):
+    response = requests.get(
+        f"{API_LOAD_ANALYSIS}/{document_id}",
+        headers=_auth_headers(),
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    _apply_analysis_payload(payload)
+    return payload
 
 
 def _apply_analysis_payload(payload):
@@ -647,6 +684,109 @@ if "document_id" not in st.session_state:
 if "analysis_payload" not in st.session_state:
     st.session_state.analysis_payload = None
 
+if "auth_token" not in st.session_state:
+    st.session_state.auth_token = None
+
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+with st.sidebar:
+    st.markdown("### Account")
+    if st.session_state.current_user:
+        user = st.session_state.current_user
+        st.caption(f"Signed in as {user.get('email')}")
+        if st.button("Sign out", use_container_width=True):
+            try:
+                requests.post(API_AUTH_LOGOUT, headers=_auth_headers(), timeout=15)
+            except Exception:
+                pass
+            _clear_auth_state()
+            st.rerun()
+
+        st.markdown("### Saved Analyses")
+        try:
+            history_items = _fetch_history(st.session_state.auth_token)
+        except Exception as exc:
+            history_items = []
+            st.caption(f"Could not load history: {exc}")
+
+        if history_items:
+            for item in history_items:
+                risk = item["risk_overview"]
+                label = item.get("original_name") or f"{item['source_type'].upper()} document"
+                preview = " ".join((item.get("summary") or "").split())[:88]
+                st.markdown(f"**{label}**")
+                st.caption(f"H:{risk['high']} M:{risk['medium']} L:{risk['low']} | {item['created_at'][:10]}")
+                if preview:
+                    st.caption(preview + ("..." if len(preview) == 88 else ""))
+                if st.button("Open analysis", key=f"history-open-{item['document_id']}", use_container_width=True):
+                    with st.spinner("Loading saved analysis..."):
+                        try:
+                            _load_history_document(item["document_id"])
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Could not load analysis: {exc}")
+                st.markdown("---")
+        else:
+            st.caption("Your saved analyses will appear here once you analyze documents while signed in.")
+    else:
+        sign_in_tab, register_tab = st.tabs(["Sign in", "Create account"])
+
+        with sign_in_tab:
+            with st.form("login-form"):
+                login_email = st.text_input("Email", key="login-email")
+                login_password = st.text_input("Password", type="password", key="login-password")
+                login_submit = st.form_submit_button("Sign in", use_container_width=True)
+
+            if login_submit:
+                try:
+                    response = requests.post(
+                        API_AUTH_LOGIN,
+                        json={"email": login_email, "password": login_password},
+                        timeout=20,
+                    )
+                    payload = response.json()
+                    if response.status_code == 200:
+                        st.session_state.auth_token = payload["access_token"]
+                        st.session_state.current_user = payload["user"]
+                        _fetch_history.clear()
+                        _fetch_report_bytes.clear()
+                        st.rerun()
+                    else:
+                        st.error(payload.get("detail", "Could not sign in."))
+                except Exception as exc:
+                    st.error(f"Connection Error: {exc}")
+
+        with register_tab:
+            with st.form("register-form"):
+                register_name = st.text_input("Name", key="register-name")
+                register_email = st.text_input("Email", key="register-email")
+                register_password = st.text_input("Password", type="password", key="register-password")
+                register_submit = st.form_submit_button("Create account", use_container_width=True)
+
+            if register_submit:
+                try:
+                    response = requests.post(
+                        API_AUTH_REGISTER,
+                        json={
+                            "name": register_name,
+                            "email": register_email,
+                            "password": register_password,
+                        },
+                        timeout=20,
+                    )
+                    payload = response.json()
+                    if response.status_code == 200:
+                        st.session_state.auth_token = payload["access_token"]
+                        st.session_state.current_user = payload["user"]
+                        _fetch_history.clear()
+                        _fetch_report_bytes.clear()
+                        st.rerun()
+                    else:
+                        st.error(payload.get("detail", "Could not create account."))
+                except Exception as exc:
+                    st.error(f"Connection Error: {exc}")
+
 # -------------------------------
 # FILE UPLOAD
 # -------------------------------
@@ -688,7 +828,7 @@ with input_tab_pdf:
         }
 
         try:
-            response = requests.post(API_ANALYZE, files=files)
+            response = requests.post(API_ANALYZE, files=files, headers=_auth_headers())
 
             if response.status_code == 200:
                 payload = response.json()
@@ -711,7 +851,7 @@ with input_tab_link:
         else:
             with st.spinner("Checking link and analyzing document..."):
                 try:
-                    response = requests.post(API_ANALYZE_URL, json={"url": doc_url.strip()})
+                    response = requests.post(API_ANALYZE_URL, json={"url": doc_url.strip()}, headers=_auth_headers())
                     if response.status_code == 200:
                         payload = response.json()
                         st.success("Link analysis complete ✅")
@@ -741,7 +881,7 @@ with input_tab_images:
                         ("files", (image.name, image, image.type or "image/jpeg"))
                         for image in document_images
                     ]
-                    response = requests.post(API_ANALYZE_IMAGES, files=files)
+                    response = requests.post(API_ANALYZE_IMAGES, files=files, headers=_auth_headers())
                     if response.status_code == 200:
                         payload = response.json()
                         st.success("Photo analysis complete ✅")
@@ -772,7 +912,7 @@ if st.session_state.analysis_payload:
             st.markdown('<div class="section-intro">Review the summary, scan the strongest risks, and export a report when you want something shareable.</div>', unsafe_allow_html=True)
         with overview_action_col:
             try:
-                report_bytes = _fetch_report_bytes(payload["document_id"])
+                report_bytes = _fetch_report_bytes(payload["document_id"], st.session_state.auth_token)
                 st.download_button(
                     "Download PDF Report",
                     data=report_bytes,
@@ -938,7 +1078,8 @@ if st.session_state.analysis_payload:
                             json={
                                 "question": question,
                                 "document_id": st.session_state.document_id,
-                            }
+                            },
+                            headers=_auth_headers(),
                         )
 
                         result = response.json()

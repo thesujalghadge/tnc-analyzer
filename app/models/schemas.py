@@ -63,3 +63,36 @@ class AskResponse(BaseModel):
     grounded: bool
     confidence: float
     citations: List[SourceChunk]
+
+
+class UserResponse(BaseModel):
+    id: str
+    name: str | None = None
+    email: str
+    created_at: str
+
+
+class AuthRegisterRequest(BaseModel):
+    name: str | None = None
+    email: str
+    password: str
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    user: UserResponse
+
+
+class HistoryItem(BaseModel):
+    document_id: str
+    original_name: str | None = None
+    source_type: str
+    created_at: str
+    page_count: int
+    summary: str
+    risk_overview: RiskOverview

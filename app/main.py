@@ -5,22 +5,44 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 
 from app.db.database import init_db
-from app.models.schemas import AnalyzeResponse, AnalyzeUrlRequest, AskRequest, AskResponse, DocumentMetadata
+from app.db.vector_store import VectorStore
+from app.models.schemas import (
+    AnalyzeResponse,
+    AnalyzeUrlRequest,
+    AskRequest,
+    AskResponse,
+    AuthLoginRequest,
+    AuthRegisterRequest,
+    AuthResponse,
+    DocumentMetadata,
+    HistoryItem,
+    UserResponse,
+)
 from app.services.analysis_service import (
     analyze_document as run_document_analysis,
     analyze_image_text,
     analyze_url as run_url_analysis,
 )
+from app.services.auth_service import (
+    authenticate_user,
+    create_session,
+    get_user_from_token,
+    register_user,
+    revoke_session,
+)
 from app.services.document_store import InMemoryDocumentStore
+from app.services.embedding import get_embeddings
 from app.services.llm_service import extract_text_from_images
 from app.services.persistence_service import (
+    build_analysis_payload,
     compute_file_checksum,
     compute_text_checksum,
     ensure_storage_path,
     fetch_document_bundle,
+    list_user_history,
     persist_analysis,
     persist_chat_exchange,
 )
@@ -107,12 +129,101 @@ def _structured_clauses(response: AnalyzeResponse):
     return [clause.model_dump() for clause in response.clauses]
 
 
+def _extract_bearer_token(authorization: str | None):
+    if not authorization:
+        return None
+    parts = authorization.split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid authorization header.")
+    return parts[1].strip()
+
+
+def _current_user(authorization: str | None, *, required: bool = False):
+    token = _extract_bearer_token(authorization)
+    if not token:
+        if required:
+            raise HTTPException(status_code=401, detail="Authentication required.")
+        return None
+
+    user = get_user_from_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Your session is invalid or expired. Please sign in again.")
+    return user
+
+
+def _restore_document_session(document_id: str, *, user_id: str | None = None):
+    payload = build_analysis_payload(document_id, user_id=user_id)
+    bundle = fetch_document_bundle(document_id)
+
+    if payload is None or bundle is None:
+        return None, None
+
+    chunks = bundle["chunks"]
+    chunk_texts = [chunk["text"] for chunk in chunks]
+    if not chunk_texts:
+        return payload, None
+
+    embeddings = get_embeddings(chunk_texts)
+    vector_store = VectorStore(dimension=len(embeddings[0]))
+    vector_store.add(embeddings, chunk_texts)
+
+    session = document_store.create(
+        chunks=chunks,
+        clauses=payload["clauses"],
+        vector_index=vector_store.index,
+        document_id=document_id,
+    )
+    return payload, session
+
+
+# =========================================================
+# 🔹 AUTH ENDPOINTS
+# =========================================================
+
+@app.post("/auth/register", response_model=AuthResponse)
+async def register(request: AuthRegisterRequest):
+    if len(request.password.strip()) < 8:
+        raise HTTPException(status_code=400, detail="Password should be at least 8 characters long.")
+
+    try:
+        user = register_user(request.name, request.email, request.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return AuthResponse(
+        access_token=create_session(user["id"]),
+        user=UserResponse(**user),
+    )
+
+
+@app.post("/auth/login", response_model=AuthResponse)
+async def login(request: AuthLoginRequest):
+    try:
+        user = authenticate_user(request.email, request.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    return AuthResponse(
+        access_token=create_session(user["id"]),
+        user=UserResponse(**user),
+    )
+
+
+@app.post("/auth/logout")
+async def logout(authorization: str | None = Header(default=None)):
+    token = _extract_bearer_token(authorization)
+    if token:
+        revoke_session(token)
+    return {"ok": True}
+
+
 # =========================================================
 # 🔹 ANALYZE ENDPOINT
 # =========================================================
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_document(file: UploadFile = File(...)):
+async def analyze_document(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
+    user = _current_user(authorization, required=False)
     stored_file = await _persist_uploaded_file(file, "uploaded_document.pdf")
 
     try:
@@ -124,6 +235,7 @@ async def analyze_document(file: UploadFile = File(...)):
     metadata = persist_analysis(
         document_id=document_id,
         source_type="pdf",
+        user_id=user["id"] if user else None,
         original_name=stored_file["original_name"],
         stored_path=stored_file["path"],
         file_size=stored_file["file_size"],
@@ -150,7 +262,8 @@ async def analyze_document(file: UploadFile = File(...)):
 
 
 @app.post("/analyze-url", response_model=AnalyzeResponse)
-async def analyze_document_url(request: AnalyzeUrlRequest):
+async def analyze_document_url(request: AnalyzeUrlRequest, authorization: str | None = Header(default=None)):
+    user = _current_user(authorization, required=False)
     try:
         response, vector_store, chunks, analysis = run_url_analysis(request.url)
     except ValueError as exc:
@@ -161,6 +274,7 @@ async def analyze_document_url(request: AnalyzeUrlRequest):
     metadata = persist_analysis(
         document_id=document_id,
         source_type="url",
+        user_id=user["id"] if user else None,
         original_name=_sanitize_filename(Path(urlparse(request.url).path).name or "web_document", "web_document"),
         source_url=request.url,
         checksum=checksum,
@@ -185,7 +299,8 @@ async def analyze_document_url(request: AnalyzeUrlRequest):
 
 
 @app.post("/analyze-images", response_model=AnalyzeResponse)
-async def analyze_document_images(files: list[UploadFile] = File(...)):
+async def analyze_document_images(files: list[UploadFile] = File(...), authorization: str | None = Header(default=None)):
+    user = _current_user(authorization, required=False)
     if not files:
         raise HTTPException(status_code=400, detail="Please upload at least one document image.")
 
@@ -208,6 +323,7 @@ async def analyze_document_images(files: list[UploadFile] = File(...)):
     metadata = persist_analysis(
         document_id=document_id,
         source_type="image",
+        user_id=user["id"] if user else None,
         original_name=stored_images["original_name"],
         stored_path=json.dumps(stored_images["stored_paths"], ensure_ascii=True),
         file_size=stored_images["file_size"],
@@ -255,10 +371,16 @@ async def ask_question(request: AskRequest):
 
 
 @app.get("/report/{document_id}")
-async def download_report(document_id: str):
+async def download_report(document_id: str, authorization: str | None = Header(default=None)):
     bundle = fetch_document_bundle(document_id)
     if bundle is None or bundle.get("analysis") is None:
         raise HTTPException(status_code=404, detail="Stored analysis not found for this document.")
+
+    owner_id = bundle["document"].get("user_id")
+    if owner_id:
+        user = _current_user(authorization, required=True)
+        if user["id"] != owner_id:
+            raise HTTPException(status_code=403, detail="You do not have access to this report.")
 
     report_bytes = build_analysis_report_pdf(bundle)
     filename = build_report_filename(bundle)
@@ -267,3 +389,23 @@ async def download_report(document_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.get("/history", response_model=list[HistoryItem])
+async def get_history(authorization: str | None = Header(default=None)):
+    user = _current_user(authorization, required=True)
+    items = list_user_history(user["id"])
+    return [HistoryItem(**item) for item in items]
+
+
+@app.get("/analysis/{document_id}", response_model=AnalyzeResponse)
+async def load_stored_analysis(document_id: str, authorization: str | None = Header(default=None)):
+    user = _current_user(authorization, required=True)
+    payload, session = _restore_document_session(document_id, user_id=user["id"])
+
+    if payload is None or session is None:
+        raise HTTPException(status_code=404, detail="Stored analysis not found for this user.")
+
+    response = AnalyzeResponse(**payload)
+    response.document_id = session.document_id
+    return response
