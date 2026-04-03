@@ -85,6 +85,11 @@ RISK_SIGNALS = {
         "keywords": ["share data", "disclose personal", "third party", "collect personal data", "personal data"],
         "reason": "The clause allows collection or sharing of user data.",
     },
+    "collection_contact": {
+        "weight": 1.7,
+        "keywords": ["third parties appointed for collection", "collect dues", "reminders", "follow up", "telephone", "sms messaging"],
+        "reason": "The lender can use repeated reminders or third-party collection contact if payments are missed.",
+    },
     "forced_dispute_process": {
         "weight": 1.8,
         "keywords": ["arbitration", "exclusive jurisdiction", "waive class action"],

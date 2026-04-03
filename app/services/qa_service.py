@@ -48,6 +48,48 @@ def retrieve_chunks(query, index, chunks, top_k=3, candidate_pool=6):
     return reranked_results[:top_k]
 
 
+def is_risk_summary_question(question: str):
+    question_lower = question.lower()
+    patterns = [
+        "is this risky",
+        "is this tnc risky",
+        "what is risky",
+        "what should i worry",
+        "should i be worried",
+        "summarize the risks",
+        "main risks",
+        "biggest risks",
+        "what are the risks",
+    ]
+    return any(pattern in question_lower for pattern in patterns)
+
+
+def retrieve_risk_clauses(question, clauses, top_k=3):
+    query_embedding = np.array(get_embeddings([question])[0], dtype="float32")
+    clause_embeddings = get_embeddings([clause["clause"] for clause in clauses])
+    scored_results = []
+
+    for clause, embedding in zip(clauses, clause_embeddings):
+        semantic_score = _cosine_similarity(query_embedding, np.array(embedding, dtype="float32"))
+        risk_weight = clause["risk_score"] / 10.0
+        combined_score = round((semantic_score * 0.45) + (risk_weight * 0.55), 4)
+        scored_results.append({
+            "chunk_id": clause["chunk_id"],
+            "page_number": clause["page_number"],
+            "text": clause["clause"],
+            "relevance_score": combined_score,
+            "risk_score": clause["risk_score"],
+            "risk": clause["risk"],
+            "reason": clause["reason"],
+        })
+
+    scored_results.sort(
+        key=lambda item: (item["risk_score"], item["relevance_score"]),
+        reverse=True,
+    )
+    return scored_results[:top_k]
+
+
 # =========================================================
 # 🔹 BUILD CONTEXT
 # =========================================================
@@ -94,6 +136,27 @@ def fallback_answer(question, context):
     return {
         "answer": "Answer not clearly found in document.",
         "grounded": False,
+    }
+
+
+def fallback_risk_answer(citations):
+    if not citations:
+        return {
+            "answer": "I could not find enough grounded evidence to judge the document risk clearly.",
+            "grounded": False,
+        }
+
+    highest = citations[0]
+    if highest["risk_score"] >= 7:
+        answer = "Yes. This document has at least one clearly risky clause, especially around how the lender can change terms or act without directly informing the borrower."
+    elif highest["risk_score"] >= 4:
+        answer = "This document has some meaningful risks, mostly around payment changes, fees, or lender-favorable conditions, but it does not look extreme overall."
+    else:
+        answer = "This document looks relatively standard from the retrieved clauses, though there are still some user obligations to review."
+
+    return {
+        "answer": answer,
+        "grounded": True,
     }
 
 
@@ -145,11 +208,55 @@ Instructions:
     return fallback_answer(question, context)
 
 
-def calculate_confidence(citations, grounded):
+def generate_risk_answer(question, context, citations):
+    from app.services.llm_service import USE_GEMINI
+
+    if USE_GEMINI:
+        try:
+            from app.services.llm_service import gemini_model
+
+            prompt = f"""
+You are analyzing legal clauses from a user document.
+
+Question:
+{question}
+
+Retrieved risk-focused clauses:
+{context}
+
+Instructions:
+- Answer in plain language for a normal user
+- Focus on whether the document has meaningful user risks
+- Mention the most important 1-2 risks only
+- Use only the given clauses
+- Return strict JSON only with this shape:
+  {{"answer":"...","grounded":true}}
+"""
+
+            response = gemini_model.generate_content(prompt)
+
+            if hasattr(response, "text") and response.text:
+                response_text = response.text.strip()
+                response_text = response_text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                payload = json.loads(response_text)
+                return {
+                    "answer": payload.get("answer", "").strip() or "I could not summarize the risks clearly from the retrieved clauses.",
+                    "grounded": bool(payload.get("grounded", False)),
+                }
+        except Exception as e:
+            print("❌ Gemini Risk QA Error:", e)
+
+    return fallback_risk_answer(citations)
+
+
+def calculate_confidence(citations, grounded, risk_mode=False):
     if not citations:
         return 0.0
 
     average_score = sum(chunk["relevance_score"] for chunk in citations) / len(citations)
+    if risk_mode:
+        top_risk = max(chunk.get("risk_score", 0.0) for chunk in citations) / 10.0
+        average_score = max(average_score, (average_score * 0.55) + (top_risk * 0.45))
     if not grounded:
         average_score *= 0.6
 
@@ -160,16 +267,23 @@ def calculate_confidence(citations, grounded):
 # 🔹 MAIN FUNCTION
 # =========================================================
 
-def answer_question(question, index, chunks):
-    # 1. retrieve relevant chunks
-    top_chunks = retrieve_chunks(question, index, chunks)
+def answer_question(question, index, chunks, clauses):
+    risk_mode = is_risk_summary_question(question)
+
+    if risk_mode:
+        top_chunks = retrieve_risk_clauses(question, clauses)
+    else:
+        top_chunks = retrieve_chunks(question, index, chunks)
 
     # 2. build context
     context = build_context(top_chunks)
 
     # 3. generate answer
-    answer_payload = generate_answer(question, context)
-    confidence = calculate_confidence(top_chunks, answer_payload["grounded"])
+    if risk_mode:
+        answer_payload = generate_risk_answer(question, context, top_chunks)
+    else:
+        answer_payload = generate_answer(question, context)
+    confidence = calculate_confidence(top_chunks, answer_payload["grounded"], risk_mode=risk_mode)
 
     # 4. return with evidence
     return AskResponse(
