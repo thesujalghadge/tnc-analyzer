@@ -93,25 +93,6 @@ def local_explain(reason):
     return result
 
 
-def local_simple_summary(chunks):
-    key_points = []
-
-    for chunk in chunks[:3]:
-        chunk = chunk[:600]
-        prompt = f"Explain this in very simple English for a normal user:\n{chunk}"
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-        outputs = model.generate(
-            **inputs,
-            max_length=32,
-            num_beams=4
-        )
-        summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        if len(summary) > 8:
-            key_points.append(summary)
-
-    return "\n".join([f"• {s}" for s in key_points])
-
-
 # =========================================================
 # 🔹 GEMINI FUNCTIONS (POLISHED)
 # =========================================================
@@ -167,57 +148,6 @@ Rules:
     return None
 
 
-def gemini_simple_explain(reason):
-    try:
-        prompt = f"""
-Explain this legal or financial risk in very simple English.
-
-Risk: {reason}
-
-Rules:
-- Use plain everyday English
-- One short sentence
-- Avoid legal jargon
-- Explain what it means for the user
-"""
-
-        response = gemini_model.generate_content(prompt)
-
-        if hasattr(response, "text") and response.text:
-            return response.text.strip()
-
-    except Exception as e:
-        print("❌ Gemini Simple Explain Error:", e)
-
-    return None
-
-
-def gemini_simple_summary(chunks):
-    try:
-        text = " ".join(chunks[:3])[:1500]
-
-        prompt = f"""
-Explain this document in simple English for a normal user.
-
-Rules:
-- Use only short bullet points
-- Keep the wording simple and practical
-- Explain what the document is about and what may affect the user
-- Avoid technical or legal wording where possible
-
-Document:
-{text}
-"""
-
-        response = gemini_model.generate_content(prompt)
-
-        if hasattr(response, "text") and response.text:
-            return response.text.strip()
-
-    except Exception as e:
-        print("❌ Gemini Simple Summary Error:", e)
-
-    return None
 
 
 # =========================================================
@@ -233,18 +163,9 @@ def generate_summary(chunks):
     return local_summary(chunks)
 
 
-def generate_simple_summary(chunks):
-    if USE_GEMINI:
-        result = gemini_simple_summary(chunks)
-        if result:
-            return result
-
-    return local_simple_summary(chunks)
-
-
 def explain_simple(clause, reason=None, category=None):
     if USE_GEMINI:
-        result = gemini_simple_explain(reason)
+        result = gemini_explain(reason)
         if result:
             return result
 

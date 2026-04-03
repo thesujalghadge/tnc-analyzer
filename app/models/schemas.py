@@ -21,7 +21,6 @@ class ClauseAnalysis(BaseModel):
     confidence: float
     reason: str
     highlighted_terms: List[str]
-    simple_explanation: str
 
 
 class RiskOverview(BaseModel):
@@ -33,7 +32,6 @@ class RiskOverview(BaseModel):
 class AnalyzeResponse(BaseModel):
     document_id: str
     summary: str
-    simple_summary: str
     risk_overview: RiskOverview
     clauses: List[ClauseAnalysis]
     formatted_output: str

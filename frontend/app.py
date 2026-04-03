@@ -12,29 +12,59 @@ st.set_page_config(page_title="T&C Analyzer", page_icon="📄", layout="wide")
 st.markdown(
     """
     <style>
+    .stApp {
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.08), transparent 28%),
+            radial-gradient(circle at top right, rgba(251, 191, 36, 0.08), transparent 24%),
+            linear-gradient(180deg, #07111f 0%, #0b1324 50%, #0e1729 100%);
+    }
     .block-container {
         max-width: 1100px;
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
-    .hero-card, .panel-card, .metric-card, .citation-card, .clause-card {
+    .hero-card {
+        border: 1px solid rgba(120, 140, 170, 0.20);
+        background:
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 24%),
+            linear-gradient(135deg, rgba(18,24,38,0.98), rgba(10,17,30,0.98));
+        border-radius: 24px;
+        padding: 1.3rem 1.35rem;
+        box-shadow: 0 18px 48px rgba(0,0,0,0.28);
+        margin-bottom: 1rem;
+    }
+    .panel-card, .metric-card, .citation-card, .clause-card, .upload-card {
         border: 1px solid rgba(120, 140, 170, 0.18);
-        background: linear-gradient(180deg, rgba(18,24,38,0.96), rgba(13,18,30,0.96));
-        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(18,24,38,0.94), rgba(13,18,30,0.94));
+        border-radius: 20px;
         padding: 1rem 1.15rem;
         box-shadow: 0 12px 32px rgba(0,0,0,0.18);
     }
     .hero-title {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 2.2rem;
+        font-weight: 800;
         margin-bottom: 0.35rem;
+        letter-spacing: -0.03em;
     }
     .hero-subtitle {
-        color: #a7b4c8;
-        margin-bottom: 0;
+        color: #adc0d8;
+        margin-bottom: 0.9rem;
+        max-width: 760px;
+        line-height: 1.65;
+    }
+    .hero-kicker {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.28rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #bfe7ff;
+        background: rgba(14,165,233,0.12);
+        border: 1px solid rgba(56,189,248,0.22);
+        margin-bottom: 0.85rem;
     }
     .metric-value {
-        font-size: 1.6rem;
+        font-size: 1.85rem;
         font-weight: 700;
         margin: 0;
     }
@@ -72,6 +102,12 @@ st.markdown(
         border-left: 4px solid #60a5fa;
         padding-left: 0.95rem;
         margin-top: 0.5rem;
+    }
+    .section-intro {
+        color: #90a0b8;
+        font-size: 0.92rem;
+        margin-top: -0.1rem;
+        margin-bottom: 0.8rem;
     }
     </style>
     """,
@@ -149,9 +185,10 @@ def _display_category(category: str):
 st.markdown(
     """
     <div class="hero-card">
+        <div class="hero-kicker">Source-grounded document intelligence</div>
         <div class="hero-title">AI Terms &amp; Conditions Analyzer</div>
         <p class="hero-subtitle">
-            Upload a PDF, surface the riskiest clauses, and chat with cited evidence instead of reading the full document blindly.
+            Upload a PDF, get the most important risks first, and ask questions with cited evidence instead of reading the whole document line by line.
         </p>
     </div>
     """,
@@ -170,14 +207,12 @@ if "document_id" not in st.session_state:
 if "analysis_payload" not in st.session_state:
     st.session_state.analysis_payload = None
 
-if "reading_mode" not in st.session_state:
-    st.session_state.reading_mode = "Simple"
-
-
 # -------------------------------
 # FILE UPLOAD
 # -------------------------------
-uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+st.markdown('<div class="section-label">Upload Document</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-intro">Start with one PDF. The app will extract clauses, score risks, and let you ask follow-up questions.</div>', unsafe_allow_html=True)
+uploaded_file = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
 
 if uploaded_file is not None:
 
@@ -211,21 +246,8 @@ if uploaded_file is not None:
 if st.session_state.analysis_payload:
     payload = st.session_state.analysis_payload
     top_clauses = _dedupe_clauses(payload["clauses"], limit=6)
-
-    mode_col, _ = st.columns([0.45, 0.55])
-    with mode_col:
-        st.session_state.reading_mode = st.radio(
-            "Reading mode",
-            ["Standard", "Simple"],
-            horizontal=True,
-        )
-
-    if st.session_state.reading_mode == "Standard":
-        summary_text = payload["formatted_output"]
-        clause_explanation_key = "reason"
-    else:
-        summary_text = payload["simple_summary"]
-        clause_explanation_key = "simple_explanation"
+    summary_text = payload["formatted_output"]
+    clause_explanation_key = "reason"
 
     metric_cols = st.columns(4)
     metrics = [
@@ -250,6 +272,7 @@ if st.session_state.analysis_payload:
 
     with left_col:
         st.markdown('<div class="section-label">Executive Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-intro">The fast read: what this document is about and where the main risks sit.</div>', unsafe_allow_html=True)
         st.markdown(
             f'<div class="panel-card"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;">{html.escape(summary_text)}</pre></div>',
             unsafe_allow_html=True,
@@ -257,6 +280,7 @@ if st.session_state.analysis_payload:
 
     with right_col:
         st.markdown('<div class="section-label">Top Risk Signals</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-intro">The three clauses most likely to affect the user.</div>', unsafe_allow_html=True)
         for clause in top_clauses[:3]:
             badges = (
                 _risk_badge(clause["risk"])
@@ -274,34 +298,36 @@ if st.session_state.analysis_payload:
                 unsafe_allow_html=True,
             )
 
-    st.markdown('<div class="section-label" style="margin-top:1.2rem;">Clause Risk Review</div>', unsafe_allow_html=True)
-    for clause in top_clauses:
-        badges = (
-            _risk_badge(clause["risk"])
-            + _neutral_badge(f"Score {clause['risk_score']}/10")
-            + _neutral_badge(f"Confidence {clause['confidence']}")
-            + _neutral_badge(_display_category(clause["category"]))
-        )
-        highlighted = _highlight_clause(clause["clause"][:420], clause.get("highlighted_terms", []))
-        terms = ", ".join(clause.get("highlighted_terms", [])[:5]) or "No explicit trigger terms"
-        st.markdown(
-            f"""
-            <div class="clause-card" style="margin-bottom:0.85rem;">
-                {badges}
-                <div class="muted" style="margin-top:0.4rem;">Page {clause['page_number']} | Category confidence {clause['category_confidence']}</div>
-                <div style="margin-top:0.85rem; line-height:1.65;">{highlighted}</div>
-                <div class="muted" style="margin-top:0.8rem;">Why flagged: {html.escape(clause[clause_explanation_key])}</div>
-                <div class="muted" style="margin-top:0.25rem;">Highlighted phrases: {html.escape(terms)}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    with st.expander(f"See detailed clause risk review ({len(top_clauses)} clauses)", expanded=False):
+        st.markdown('<div class="section-intro">Open this only when you want to inspect individual clauses in more detail.</div>', unsafe_allow_html=True)
+        for clause in top_clauses:
+            badges = (
+                _risk_badge(clause["risk"])
+                + _neutral_badge(f"Score {clause['risk_score']}/10")
+                + _neutral_badge(f"Confidence {clause['confidence']}")
+                + _neutral_badge(_display_category(clause["category"]))
+            )
+            highlighted = _highlight_clause(clause["clause"][:420], clause.get("highlighted_terms", []))
+            terms = ", ".join(clause.get("highlighted_terms", [])[:5]) or "No explicit trigger terms"
+            st.markdown(
+                f"""
+                <div class="clause-card" style="margin-bottom:0.85rem;">
+                    {badges}
+                    <div class="muted" style="margin-top:0.4rem;">Page {clause['page_number']} | Category confidence {clause['category_confidence']}</div>
+                    <div style="margin-top:0.85rem; line-height:1.65;">{highlighted}</div>
+                    <div class="muted" style="margin-top:0.8rem;">Why flagged: {html.escape(clause[clause_explanation_key])}</div>
+                    <div class="muted" style="margin-top:0.25rem;">Highlighted phrases: {html.escape(terms)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # -------------------------------
 # Q&A SECTION
 # -------------------------------
 st.markdown('<div class="section-label" style="margin-top:1.4rem;">Chat With Document</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-intro">Ask direct questions in your own words. The app answers using retrieved document evidence.</div>', unsafe_allow_html=True)
 
 if not st.session_state.document_loaded:
     st.warning("⚠️ Please upload and analyze a document first.")
