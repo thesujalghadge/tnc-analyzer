@@ -10,13 +10,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create a non-root user (Hugging Face Spaces runs as user 1000)
 RUN useradd -m -u 1000 user
+
+# Grant the user ownership of the /app directory BEFORE switching users
+RUN chown -R user:user /app
+
+# Switch to the non-root user
 USER user
 
 # Copy the application code using the new user permissions
 COPY --chown=user . /app
 
-# Ensure the SQLite data directory exists and is writable
-RUN mkdir -p /app/data
+# Explicitly create the data storage directories with the correct permissions
+RUN mkdir -p /app/data/uploads
 
 # Hugging Face Spaces exposes port 7860 natively
 ENV PORT=7860
