@@ -808,7 +808,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-input_tab_pdf, input_tab_link, input_tab_images = st.tabs(["Upload PDF", "Paste Link", "Upload Photos"])
+input_tab_pdf, input_tab_link, input_tab_images = st.tabs(["PDF Document", "Web Link", "Printed Photos"])
 
 with input_tab_pdf:
     uploaded_file = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
